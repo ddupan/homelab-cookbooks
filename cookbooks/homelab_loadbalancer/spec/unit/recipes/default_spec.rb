@@ -33,7 +33,7 @@ describe 'homelab_loadbalancer::default' do
 
   it 'trusts only this environment\'s client CA' do
     expect(chef_run.remote_file('/etc/ayatori-lb/client-ca.pem').source)
-      .to eq(['https://bao.ad.ddupan.top:8200/v1/pki-loadbalancer-prod/ca/pem'])
+      .to eq(['https://bao.lab.ddupan.top:8200/v1/pki-loadbalancer-prod/ca/pem'])
   end
 
   it 'validates dataplaneapi transactions with the base config loaded first' do
@@ -54,7 +54,7 @@ describe 'homelab_loadbalancer::default' do
     is_expected.to render_file('/usr/local/sbin/ayatori-lb-cert')
       .with_content("--http.address '10.60.0.31:80'")
       .with_content("--domains 'lb1.lab.ddupan.top'")
-      .with_content('https://bao.ad.ddupan.top:8200/v1/pki/acme/directory')
+      .with_content('https://bao.lab.ddupan.top:8200/v1/pki/acme/directory')
   end
 
   it 'issues only when no certificate has been deployed yet' do

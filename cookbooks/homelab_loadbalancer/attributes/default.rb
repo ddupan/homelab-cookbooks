@@ -2,7 +2,7 @@
 # homelab-infra. Nothing here is secret: the Basic password is a crypt hash and the
 # client CA is public.
 default['homelab_loadbalancer']['environment'] = nil # dev | prod
-default['homelab_loadbalancer']['bao'] = 'https://bao.ad.ddupan.top:8200'
+default['homelab_loadbalancer']['bao'] = 'https://bao.lab.ddupan.top:8200'
 # LAN resolver for DNS endpoints (Blocky, which forwards lab.ddupan.top to PowerDNS).
 default['homelab_loadbalancer']['resolver'] = '192.168.10.127:53'
 default['homelab_loadbalancer']['dataplaneapi']['password_hash'] = nil
