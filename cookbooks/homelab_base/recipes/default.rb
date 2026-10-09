@@ -21,7 +21,7 @@ Chef.event_handler do
   end
 end
 
-# Not in why-run: a periodic apt update is always "due" once a day, and the hourly
+# Not in why-run: a periodic apt update is always "due" once a day, and the daily
 # drift check would report that as drift. Manual converges still refresh the cache.
 unless Chef::Config[:why_run]
   apt_update 'daily' do
