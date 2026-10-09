@@ -3,8 +3,8 @@
 
 # bao serves a real Let's Encrypt cert and both endpoints are unauthenticated, so
 # no token touches the node and a CA rotation is picked up on the next run.
-# By HOSTNAME: the cert has a DNS SAN only.
-bao = 'https://bao.ad.ddupan.top:8200'
+# By HOSTNAME: the cert has DNS SANs only (bao.ad and bao.lab; lab is the target zone).
+bao = 'https://bao.lab.ddupan.top:8200'
 
 # Shared with infrastructure/chef/converge.sh in homelab-infra: the last policy a
 # manual converge applied. The drift timer why-runs against it.
@@ -43,3 +43,6 @@ homelab_base_node_exporter 'default' do
 end
 
 homelab_base_drift_check policy_dir
+
+homelab_base_spire_node_cert 'default'
+homelab_base_spire_agent 'default'

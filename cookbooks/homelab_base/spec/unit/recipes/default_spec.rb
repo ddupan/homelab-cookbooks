@@ -3,7 +3,8 @@ require 'spec_helper'
 describe 'homelab_base::default' do
   platform 'ubuntu', '24.04'
   step_into :homelab_base_ca_trust, :homelab_base_ssh_ca_trust, :homelab_base_node_exporter,
-            :homelab_base_drift_check
+            :homelab_base_drift_check, :homelab_base_spire_agent,
+            :homelab_base_spire_node_cert
 
   it 'runs every node_exporter collector on a VM or bare metal' do
     is_expected.to render_file('/etc/default/prometheus-node-exporter')
@@ -63,5 +64,44 @@ describe 'homelab_base::default' do
     it 'skips apt_update, which would otherwise report drift every day' do
       is_expected.not_to periodic_apt_update('daily')
     end
+  end
+
+  it 'attests the SPIRE agent with the ACME node certificate' do
+    is_expected.to render_file('/etc/spire-agent/agent.conf')
+      .with_content('NodeAttestor "x509pop"')
+      .with_content('certificate_path = "/etc/spire-agent/node.crt"')
+      .with_content('socket_path       = "/run/spire/agent-sockets/spire-agent.sock"')
+  end
+
+  it 'does not start the agent before enrollment' do
+    is_expected.not_to start_service('spire-agent')
+  end
+
+  context 'with hostname etcd-pve1' do
+    automatic_attributes['hostname'] = 'etcd-pve1'
+
+    it 'requests the lab name, with a CN for the node alias selector' do
+      is_expected.to render_file('/usr/local/sbin/spire-node-cert')
+        .with_content("--domains 'etcd-pve1.lab.ddupan.top'")
+        .with_content('--enable-cn')
+    end
+  end
+
+  it 'never carries an EAB credential itself, only the switch when one is passed in' do
+    is_expected.to render_file('/usr/local/sbin/spire-node-cert')
+      .with_content('${LEGO_EAB_KID:+--eab}')
+      .with_content { |c| expect(c).not_to match(/eab\.(kid|hmac)/) }
+  end
+
+  it 'renews daily, only after enrollment' do
+    expect(chef_run.systemd_unit('spire-node-cert.service').content)
+      .to include('ConditionPathExists=/etc/spire-agent/node.crt')
+    is_expected.to enable_systemd_unit('spire-node-cert.timer')
+  end
+
+  it 'deploys with the lego v5 hook variables' do
+    is_expected.to render_file('/usr/local/sbin/spire-node-cert-deploy')
+      .with_content('"$LEGO_HOOK_CERT_PATH"')
+      .with_content('"$LEGO_HOOK_CERT_KEY_PATH"')
   end
 end

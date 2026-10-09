@@ -38,4 +38,4 @@ docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
 
 | cookbook | 内容 |
 |---|---|
-| `homelab_base` | 内部 CA 信任、OpenBao SSH user CA 信任、node_exporter（容器内关闭宿主硬件类 collector）、漂移检查 timer 与运行报告 |
+| `homelab_base` | 内部 CA 信任、OpenBao SSH user CA 信任、node_exporter（容器内关闭宿主硬件类 collector）、漂移检查 timer 与运行报告、SPIRE agent（x509pop，lego ACME 节点证书） |
