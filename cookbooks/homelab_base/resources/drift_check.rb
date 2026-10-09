@@ -17,6 +17,7 @@ action :install do
 
       [Service]
       Type=oneshot
+      Environment=HOMELAB_CINC_MODE=drift
       WorkingDirectory=#{new_resource.policy_dir}
       ExecStart=/opt/cinc/bin/cinc-client -z --why-run --no-color
       TimeoutStartSec=30min

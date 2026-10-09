@@ -48,6 +48,7 @@ describe 'homelab_base::default' do
     service = chef_run.systemd_unit('homelab-cinc-drift.service')
     expect(service.content).to include('cinc-client -z --why-run')
     expect(service.content).to include('WorkingDirectory=/var/lib/homelab-cinc/policy')
+    expect(service.content).to include('Environment=HOMELAB_CINC_MODE=drift')
     is_expected.to enable_systemd_unit('homelab-cinc-drift.timer')
   end
 

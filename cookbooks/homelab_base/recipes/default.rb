@@ -10,7 +10,9 @@ bao = 'https://bao.ad.ddupan.top:8200'
 # manual converge applied. The drift timer why-runs against it.
 policy_dir = '/var/lib/homelab-cinc/policy'
 textfile_dir = '/var/lib/prometheus/node-exporter'
-run_mode = Chef::Config[:why_run] ? 'why-run' : 'apply'
+# drift = the timer (alerts); why-run = a manual preview of a new policy (does not
+# alert, it is expected to differ); apply = a manual converge.
+run_mode = ENV['HOMELAB_CINC_MODE'] || (Chef::Config[:why_run] ? 'why-run' : 'apply')
 
 Chef.event_handler do
   on :run_completed do |_node, run_status|
