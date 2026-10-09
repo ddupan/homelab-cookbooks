@@ -6,7 +6,7 @@
 unified_mode true
 
 property :lego_version, String, default: '5.3.1'
-property :server, String, default: 'https://bao.ad.ddupan.top:8200/v1/pki-spire-nodes/roles/node/acme/directory'
+property :server, String, default: 'https://bao.lab.ddupan.top:8200/v1/pki-spire-nodes/roles/node/acme/directory'
 # Convention: a node's lab DNS name is <hostname>.lab.ddupan.top. Enrollment
 # checks that it resolves to the node before minting an EAB.
 property :domain, String, default: lazy { "#{node['hostname']}.lab.ddupan.top" }
