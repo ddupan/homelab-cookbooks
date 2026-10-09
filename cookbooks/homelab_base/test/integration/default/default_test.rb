@@ -49,6 +49,10 @@ describe systemd_service('spire-agent') do
   it { should be_enabled }
 end
 
-describe package('certbot') do
-  it { should be_installed }
+describe command('/usr/local/bin/lego --version') do
+  its('stdout') { should match(/5\.3\.1/) }
+end
+
+describe systemd_service('spire-node-cert.timer') do
+  it { should be_enabled }
 end

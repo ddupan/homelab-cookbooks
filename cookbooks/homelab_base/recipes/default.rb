@@ -44,4 +44,5 @@ end
 
 homelab_base_drift_check policy_dir
 
+homelab_base_spire_node_cert 'default'
 homelab_base_spire_agent 'default'

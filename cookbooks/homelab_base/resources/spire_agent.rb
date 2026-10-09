@@ -1,15 +1,11 @@
 # SPIRE agent for a host outside any Kubernetes cluster, attesting with x509pop.
-# The node certificate comes from the SPIRE node CA over ACME (Bao pki-spire-nodes):
-# the enrollment step in homelab-infra (infrastructure/chef/ansible) registers the
-# ACME account once with a one-time EAB, after which certbot.timer renews it. This
-# resource never touches that key material; it only installs and runs the agent.
+# The node certificate comes from spire_node_cert (ACME, Bao pki-spire-nodes) at a
+# fixed path; this resource never touches that key material.
 unified_mode true
 
 property :version, String, default: '1.15.3'
 property :server_address, String, default: 'spire-server.lab.ddupan.top'
 property :trust_domain, String, default: 'ddupan.top'
-# certbot --cert-name spire-node: a fixed path, so Chef needs no node name.
-property :cert_dir, String, default: '/etc/letsencrypt/live/spire-node'
 # Public bundle, dropped by enrollment; only bootstraps, the agent keeps it current.
 property :bootstrap_bundle, String, default: '/etc/spire-agent/bootstrap-bundle.pem'
 
@@ -17,9 +13,6 @@ action :install do
   release = "spire-#{new_resource.version}-linux-amd64-musl"
   base = "https://github.com/spiffe/spire/releases/download/v#{new_resource.version}"
   cache = "#{Chef::Config[:file_cache_path]}/#{release}"
-
-  # Renewal is certbot.timer from the package; enrollment installs it first too.
-  package 'certbot'
 
   # Official checksum list, never a hard-coded hash: the tarball is verified against it.
   remote_file "#{cache}_sha256sum.txt" do
@@ -44,7 +37,6 @@ action :install do
     notifies :restart, 'service[spire-agent]'
   end
 
-  directory '/etc/spire-agent'
   directory '/var/lib/spire-agent' do
     mode '0700'
   end
@@ -71,8 +63,8 @@ action :install do
         # lifetime or a lost data_dir just attests again with the node certificate.
         NodeAttestor "x509pop" {
           plugin_data {
-            private_key_path = "#{new_resource.cert_dir}/privkey.pem"
-            certificate_path = "#{new_resource.cert_dir}/cert.pem"
+            private_key_path = "/etc/spire-agent/node.key"
+            certificate_path = "/etc/spire-agent/node.crt"
           }
         }
         WorkloadAttestor "unix" {
@@ -108,6 +100,6 @@ action :install do
     action :start
     # Not enrolled yet (no node certificate): the agent could only crash-loop, and
     # every converge would "start" it again. Enrollment always precedes the run.
-    only_if { ::File.exist?("#{new_resource.cert_dir}/cert.pem") }
+    only_if { ::File.exist?('/etc/spire-agent/node.crt') }
   end
 end
