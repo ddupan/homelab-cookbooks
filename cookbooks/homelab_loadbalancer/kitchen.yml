@@ -1,0 +1,43 @@
+---
+driver:
+  name: dokken
+  privileged: true
+  chef_version: '19'
+
+provisioner:
+  name: dokken
+  product_name: cinc
+  # The acceptance test: a second converge must update nothing.
+  enforce_idempotency: true
+  multiple_converge: 2
+
+transport:
+  name: dokken
+
+verifier:
+  name: inspec
+
+platforms:
+  - name: debian-13
+    driver:
+      image: dokken/debian-13
+      pid_one_command: /lib/systemd/systemd
+
+suites:
+  - name: default
+    attributes:
+      homelab_loadbalancer:
+        environment: dev
+        client_ca_source: file:///etc/lb-test/client-ca.pem
+        tls:
+          certificate: /etc/lb-test/server.crt
+          key: /etc/lb-test/server.key
+        dataplaneapi:
+          # openssl passwd -6 of the test-only password "test-only".
+          password_hash: '$6$OwCXPAJAHLh1AF7B$mwRxAs9Adub3bP22hUC8M/1smiqyjK5zWRUnI5bQFtYmF0mcxKD3TdGU1fB7v/9LftuCdsCe3w6wnoRCJjEHb1'
+        bgp:
+          local_as: 65101
+          # No router in Kitchen: the session stays Active, which is all the suite checks.
+          neighbors:
+            127.0.0.2: 65000
+          vip_pool: 10.62.0.0/24
