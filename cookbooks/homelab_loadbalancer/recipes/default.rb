@@ -1,7 +1,7 @@
 # Ayatori LoadBalancer host. Chef owns the node — packages, base HAProxy config,
 # systemd, BGP sessions and policy; Ayatori owns every lb_* section (through
 # dataplaneapi) and every VIP path (through gobgpd). Nothing on the node is secret:
-# the server certificate is ACME-issued, the client CA is public and the Basic
+# the server certificate is ACME-issued (renewed by its own timer), the client CA is public and the Basic
 # password is only a crypt hash.
 lb = node['homelab_loadbalancer']
 %w(environment).each do |key|
@@ -11,6 +11,8 @@ raise 'homelab_loadbalancer.environment must be dev or prod' unless %w(dev prod)
 
 address = node['ipaddress']
 client_ca = '/etc/ayatori-lb/client-ca.pem'
+certificate = '/etc/ayatori-lb/tls/server.crt'
+key = '/etc/ayatori-lb/tls/server.key'
 
 directory '/etc/ayatori-lb'
 
@@ -26,14 +28,18 @@ remote_file client_ca do
   notifies :restart, 'service[gobgpd]'
 end
 
+homelab_loadbalancer_server_cert 'default' do
+  listen address
+end
+
 homelab_loadbalancer_haproxy 'default' do
   resolver lb['resolver']
 end
 
 homelab_loadbalancer_dataplaneapi 'default' do
   listen address
-  certificate lb['tls']['certificate']
-  key lb['tls']['key']
+  certificate certificate
+  key key
   client_ca client_ca
   password_hash lb['dataplaneapi']['password_hash']
 end
@@ -44,8 +50,8 @@ homelab_loadbalancer_gobgpd 'default' do
   neighbors lb['bgp']['neighbors'].to_h
   vip_pool lb['bgp']['vip_pool']
   api_listen "#{address}:50051"
-  certificate lb['tls']['certificate']
-  key lb['tls']['key']
+  certificate certificate
+  key key
   client_ca client_ca
 end
 

@@ -2,11 +2,12 @@ require 'spec_helper'
 
 describe 'homelab_loadbalancer::default' do
   platform 'debian', '13'
-  step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_gobgpd
+  step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_gobgpd,
+            :homelab_loadbalancer_server_cert
+  automatic_attributes['hostname'] = 'lb1'
   automatic_attributes['ipaddress'] = '10.60.0.31'
   default_attributes['homelab_loadbalancer'] = {
     'environment' => 'prod',
-    'tls' => { 'certificate' => '/etc/lego/lb.crt', 'key' => '/etc/lego/lb.key' },
     'dataplaneapi' => { 'password_hash' => '$6$salt$hash' },
     'bgp' => { 'local_as' => 65101, 'neighbors' => { '10.60.0.1' => 65000 }, 'vip_pool' => '10.62.1.0/24' },
   }
@@ -47,6 +48,22 @@ describe 'homelab_loadbalancer::default' do
       expect(toml).not_to include('neighbors.apply-policy')
       expect(toml).to include('ip-prefix = "10.62.1.0/24"').and include('masklength-range = "32..32"')
     }
+  end
+
+  it "answers http-01 on the node address only, for the node's lab name" do
+    is_expected.to render_file('/usr/local/sbin/ayatori-lb-cert')
+      .with_content("--http.address '10.60.0.31:80'")
+      .with_content("--domains 'lb1.lab.ddupan.top'")
+      .with_content('https://bao.ad.ddupan.top:8200/v1/pki/acme/directory')
+  end
+
+  it 'issues only when no certificate has been deployed yet' do
+    expect(chef_run.execute('/usr/local/sbin/ayatori-lb-cert').creates).to eq('/etc/ayatori-lb/tls/server.crt')
+  end
+
+  it 'restarts both APIs after a renewal, since they read the certificate at start' do
+    is_expected.to render_file('/usr/local/sbin/ayatori-lb-cert-deploy')
+      .with_content('systemctl try-restart dataplaneapi.service gobgpd.service')
   end
 
   it 'stops the speaker whenever HAProxy stops' do

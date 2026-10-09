@@ -39,4 +39,4 @@ docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
 | cookbook | 内容 |
 |---|---|
 | `homelab_base` | 内部 CA 信任、OpenBao SSH user CA 信任、node_exporter（容器内关闭宿主硬件类 collector）、漂移检查 timer 与运行报告、SPIRE agent（x509pop，lego ACME 节点证书） |
-| `homelab_loadbalancer` | Ayatori LoadBalancer 主机：HAProxy 3.4（Chef 只管 `base.cfg`，`haproxy.cfg` 归 dataplaneapi）、Data Plane API（仅 mTLS）、GoBGP（全局 VIP-only 策略，`BindsTo=haproxy`） |
+| `homelab_loadbalancer` | Ayatori LoadBalancer 主机：服务端证书（lego，Bao `pki/` ACME，节点地址 http-01）、HAProxy 3.4（Chef 只管 `base.cfg`，`haproxy.cfg` 归 dataplaneapi）、Data Plane API（仅 mTLS）、GoBGP（全局 VIP-only 策略，`BindsTo=haproxy`） |

@@ -29,9 +29,6 @@ suites:
       homelab_loadbalancer:
         environment: dev
         client_ca_source: file:///etc/lb-test/client-ca.pem
-        tls:
-          certificate: /etc/lb-test/server.crt
-          key: /etc/lb-test/server.key
         dataplaneapi:
           # openssl passwd -6 of the test-only password "test-only".
           password_hash: '$6$OwCXPAJAHLh1AF7B$mwRxAs9Adub3bP22hUC8M/1smiqyjK5zWRUnI5bQFtYmF0mcxKD3TdGU1fB7v/9LftuCdsCe3w6wnoRCJjEHb1'

@@ -1,5 +1,5 @@
 # Kitchen stand-in for the ACME client and for Bao: a server certificate for the node
-# address and a client CA plus one client certificate, which the InSpec suite uses to
+# address at the path lego's deploy hook writes (so the cookbook skips issuing it) and a client CA plus one client certificate, which the InSpec suite uses to
 # call the APIs the way Ayatori does. Test material only.
 package 'openssl'
 
@@ -25,6 +25,9 @@ execute 'test certificates' do
     # A client certificate from a different CA, e.g. another environment's controller.
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 -subj /CN=other \
       -keyout other.key -out other.crt
+    install -d /etc/ayatori-lb/tls
+    install -m 0644 server.crt /etc/ayatori-lb/tls/server.crt
+    install -m 0600 server.key /etc/ayatori-lb/tls/server.key
   SH
   creates '/etc/lb-test/other.crt'
 end
