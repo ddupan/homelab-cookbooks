@@ -35,3 +35,20 @@ end
 describe file('/var/lib/prometheus/node-exporter/cinc_apply.prom') do
   its('content') { should match(/^homelab_cinc_last_run_success\{mode="apply"\} 1$/) }
 end
+
+# Not enrolled in Kitchen (no ACME node certificate): installed and enabled, not started.
+describe file('/usr/local/bin/spire-agent') do
+  it { should be_symlink }
+end
+
+describe command('/usr/local/bin/spire-agent --version') do
+  its('stderr') { should match(/1\.15\.3/) }
+end
+
+describe systemd_service('spire-agent') do
+  it { should be_enabled }
+end
+
+describe package('certbot') do
+  it { should be_installed }
+end

@@ -43,3 +43,5 @@ homelab_base_node_exporter 'default' do
 end
 
 homelab_base_drift_check policy_dir
+
+homelab_base_spire_agent 'default'

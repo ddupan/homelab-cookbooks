@@ -3,7 +3,7 @@ require 'spec_helper'
 describe 'homelab_base::default' do
   platform 'ubuntu', '24.04'
   step_into :homelab_base_ca_trust, :homelab_base_ssh_ca_trust, :homelab_base_node_exporter,
-            :homelab_base_drift_check
+            :homelab_base_drift_check, :homelab_base_spire_agent
 
   it 'runs every node_exporter collector on a VM or bare metal' do
     is_expected.to render_file('/etc/default/prometheus-node-exporter')
@@ -63,5 +63,16 @@ describe 'homelab_base::default' do
     it 'skips apt_update, which would otherwise report drift every day' do
       is_expected.not_to periodic_apt_update('daily')
     end
+  end
+
+  it 'attests the SPIRE agent with the ACME node certificate' do
+    is_expected.to render_file('/etc/spire-agent/agent.conf')
+      .with_content('NodeAttestor "x509pop"')
+      .with_content('certificate_path = "/etc/letsencrypt/live/spire-node/cert.pem"')
+      .with_content('socket_path       = "/run/spire/agent-sockets/spire-agent.sock"')
+  end
+
+  it 'does not start the agent before enrollment' do
+    is_expected.not_to start_service('spire-agent')
   end
 end
