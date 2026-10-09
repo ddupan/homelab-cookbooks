@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: [self-hosted, pod]
+    strategy:
+      fail-fast: false
+      matrix:
+        cookbook: [homelab_base]
+    env:
+      # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
+      WORKSTATION: docker.io/cincproject/workstation:26.3.0
+    steps:
+      - uses: actions/checkout@v4
+
+      # The WAN drops at random; every pull retries.
+      - name: Pull images
+        run: |
+          for image in "$WORKSTATION" docker.io/cincproject/cinc:19 \
+                       docker.io/dokken/ubuntu-24.04 docker.io/dokken/debian-12; do
+            for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
+          done
+
+      # Cookstyle + ChefSpec first: seconds, and a failure here skips Kitchen.
+      # Kitchen then converges twice per platform (second run must update nothing)
+      # and runs the InSpec suite. --network host: the workstation container must
+      # reach the dokken bridge, which a default-bridge container cannot.
+      - name: Lint, unit, integration
+        run: |
+          docker run --rm --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/cookbooks/${{ matrix.cookbook }}:/cb" -w /cb "$WORKSTATION" \
+            bash -lc 'cookstyle . && cinc install && cinc exec rspec && kitchen test --destroy=always'

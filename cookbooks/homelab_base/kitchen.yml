@@ -1,0 +1,31 @@
+---
+driver:
+  name: dokken
+  privileged: true
+  chef_version: '19'
+
+provisioner:
+  name: dokken
+  product_name: cinc
+  # The acceptance test: a second converge must update nothing.
+  enforce_idempotency: true
+  multiple_converge: 2
+
+transport:
+  name: dokken
+
+verifier:
+  name: inspec
+
+platforms:
+  - name: ubuntu-24.04
+    driver:
+      image: dokken/ubuntu-24.04
+      pid_one_command: /bin/systemd
+  - name: debian-12
+    driver:
+      image: dokken/debian-12
+      pid_one_command: /bin/systemd
+
+suites:
+  - name: default
