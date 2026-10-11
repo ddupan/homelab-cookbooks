@@ -11,29 +11,13 @@ property :bootstrap_bundle, String, default: '/etc/spire-agent/bootstrap-bundle.
 
 action :install do
   release = "spire-#{new_resource.version}-linux-amd64-musl"
-  base = "https://github.com/spiffe/spire/releases/download/v#{new_resource.version}"
-  cache = "#{Chef::Config[:file_cache_path]}/#{release}"
 
-  # Official checksum list, never a hard-coded hash: the tarball is verified against it.
-  remote_file "#{cache}_sha256sum.txt" do
-    source "#{base}/#{release}_sha256sum.txt"
-    retries 3
-    retry_delay 10
-  end
-
-  remote_file "#{cache}.tar.gz" do
-    source "#{base}/#{release}.tar.gz"
-    checksum(lazy { ::File.read("#{cache}_sha256sum.txt")[/^(\h{64})\s+#{Regexp.escape(release)}\.tar\.gz$/, 1] })
-    retries 3
-    retry_delay 10
-  end
-
-  archive_file "#{cache}.tar.gz" do
-    destination "/opt/#{release}"
-  end
-
-  link '/usr/local/bin/spire-agent' do
-    to "/opt/#{release}/spire-#{new_resource.version}/bin/spire-agent"
+  homelab_base_verified_release '/usr/local/bin/spire-agent' do
+    url_base "https://github.com/spiffe/spire/releases/download/v#{new_resource.version}"
+    tarball "#{release}.tar.gz"
+    checksums "#{release}_sha256sum.txt"
+    install_dir "/opt/#{release}"
+    binary "spire-#{new_resource.version}/bin/spire-agent"
     notifies :restart, 'service[spire-agent]'
   end
 

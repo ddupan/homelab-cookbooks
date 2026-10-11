@@ -13,30 +13,12 @@ property :domain, String, default: lazy { "#{node['hostname']}.lab.ddupan.top" }
 property :state_dir, String, default: '/var/lib/spire-node-acme'
 
 action :install do
-  release = "lego_v#{new_resource.lego_version}_linux_amd64"
-  base = "https://github.com/go-acme/lego/releases/download/v#{new_resource.lego_version}"
-  sums = "#{Chef::Config[:file_cache_path]}/lego_#{new_resource.lego_version}_checksums.txt"
-
-  # Official checksum list, never a hard-coded hash.
-  remote_file sums do
-    source "#{base}/lego_#{new_resource.lego_version}_checksums.txt"
-    retries 3
-    retry_delay 10
-  end
-
-  remote_file "#{Chef::Config[:file_cache_path]}/#{release}.tar.gz" do
-    source "#{base}/#{release}.tar.gz"
-    checksum(lazy { ::File.read(sums)[/^(\h{64})\s+#{Regexp.escape(release)}\.tar\.gz$/, 1] })
-    retries 3
-    retry_delay 10
-  end
-
-  archive_file "#{Chef::Config[:file_cache_path]}/#{release}.tar.gz" do
-    destination "/opt/lego-#{new_resource.lego_version}"
-  end
-
-  link '/usr/local/bin/lego' do
-    to "/opt/lego-#{new_resource.lego_version}/lego"
+  homelab_base_verified_release '/usr/local/bin/lego' do
+    url_base "https://github.com/go-acme/lego/releases/download/v#{new_resource.lego_version}"
+    tarball "lego_v#{new_resource.lego_version}_linux_amd64.tar.gz"
+    checksums "lego_#{new_resource.lego_version}_checksums.txt"
+    install_dir "/opt/lego-#{new_resource.lego_version}"
+    binary 'lego'
   end
 
   directory '/etc/spire-agent'

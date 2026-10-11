@@ -4,7 +4,7 @@ describe 'homelab_base::default' do
   platform 'ubuntu', '24.04'
   step_into :homelab_base_ca_trust, :homelab_base_ssh_ca_trust, :homelab_base_node_exporter,
             :homelab_base_drift_check, :homelab_base_spire_agent,
-            :homelab_base_spire_node_cert
+            :homelab_base_spire_node_cert, :homelab_base_verified_release
 
   it 'runs every node_exporter collector on a VM or bare metal' do
     is_expected.to render_file('/etc/default/prometheus-node-exporter')
@@ -103,5 +103,18 @@ describe 'homelab_base::default' do
     is_expected.to render_file('/usr/local/sbin/spire-node-cert-deploy')
       .with_content('"$LEGO_HOOK_CERT_PATH"')
       .with_content('"$LEGO_HOOK_CERT_KEY_PATH"')
+  end
+
+  # The converge play recreates Cinc's cache with every run's staging dir: anything
+  # downloaded there is re-downloaded each apply and missing in a fresh why-run.
+  it 'never downloads into the per-run Cinc file cache' do
+    paths = chef_run.resource_collection.grep(Chef::Resource::RemoteFile).map(&:path)
+    expect(paths).not_to be_empty
+    expect(paths).to all(satisfy { |p| !p.start_with?(Chef::Config[:file_cache_path]) })
+  end
+
+  it 'verifies release tarballs into the stable cache' do
+    is_expected.to create_remote_file('/var/cache/homelab-cinc/lego_v5.3.1_linux_amd64.tar.gz')
+    is_expected.to create_remote_file('/var/cache/homelab-cinc/spire-1.15.3-linux-amd64-musl.tar.gz')
   end
 end
