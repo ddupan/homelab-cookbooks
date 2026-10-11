@@ -4,8 +4,8 @@
 unified_mode true
 
 property :version, String, default: '1.15.3'
-property :server_address, String, default: 'spire-server.lab.ddupan.top'
-property :trust_domain, String, default: 'ddupan.top'
+property :server_address, String, required: true
+property :trust_domain, String, required: true
 # Public bundle, dropped by enrollment; only bootstraps, the agent keeps it current.
 property :bootstrap_bundle, String, default: '/etc/spire-agent/bootstrap-bundle.pem'
 

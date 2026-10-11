@@ -29,6 +29,8 @@ remote_file client_ca do
 end
 
 homelab_loadbalancer_server_cert 'default' do
+  server "#{lb['bao']}/v1/pki/acme/directory"
+  domain "#{node['hostname']}.#{lb['domain']}"
   listen address
 end
 
