@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cookbook: [homelab_base]
+        cookbook: [homelab_base, homelab_loadbalancer]
     env:
       # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
       WORKSTATION: docker.io/cincproject/workstation:26.3.0
@@ -23,7 +23,8 @@ jobs:
       - name: Pull images
         run: |
           for image in "$WORKSTATION" docker.io/cincproject/cinc:19 \
-                       docker.io/dokken/ubuntu-24.04 docker.io/dokken/debian-12; do
+                       docker.io/dokken/ubuntu-24.04 docker.io/dokken/debian-12 \
+                       docker.io/dokken/debian-13; do
             for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
           done
 
