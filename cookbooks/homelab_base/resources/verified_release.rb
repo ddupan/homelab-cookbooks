@@ -44,6 +44,9 @@ action :install do
   archive_file tarball do
     destination new_resource.install_dir
     not_if(&installed)
+    # archive_file raises in why-run when the tarball is absent (fresh node: it was
+    # only "would download" above). In a real run the download precedes this.
+    only_if { ::File.exist?(tarball) }
   end
 
   link new_resource.link_to do
