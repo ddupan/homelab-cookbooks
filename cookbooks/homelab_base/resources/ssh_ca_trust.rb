@@ -27,11 +27,14 @@ action :install do
   end
 
   service 'ssh' do
-    # Validate before reloading: a broken config must never reach a running sshd
-    # (lock-out). sshd -t needs /run/sshd, which only exists while ssh.service
-    # runs; on socket-activated Ubuntu 24.04 it often does not, and then there is
-    # nothing to reload either, hence try-reload.
-    reload_command 'install -d -m 0755 /run/sshd && /usr/sbin/sshd -t && systemctl try-reload-or-restart ssh'
+    # Validate first: a broken config must never reach a running sshd (lock-out).
+    # sshd -t needs /run/sshd, which only exists while ssh.service runs.
+    # Restart, not SIGHUP: under socket activation (Debian 13 LXC templates, Ubuntu
+    # 24.04) sshd re-execs on SIGHUP, tries to bind :22 that ssh.socket holds and
+    # dies ("Cannot bind any address"). A restart hands it the socket again; open
+    # sessions are separate processes and survive. try-: if sshd is not running,
+    # the next connection starts it with the new config anyway.
+    reload_command 'install -d -m 0755 /run/sshd && /usr/sbin/sshd -t && systemctl try-restart ssh'
     action :nothing
   end
 end
