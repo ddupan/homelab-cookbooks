@@ -76,6 +76,58 @@ describe file('/etc/haproxy/haproxy.cfg') do
   its('content') { should include 'frontend lb_test_6443' }
 end
 
+# The host can restart: dataplaneapi rewrites its own yml and ExecStartPre copies
+# Chef's source over it on every start, so what Ayatori wrote must survive that.
+describe command(<<~SH) do
+  systemctl restart dataplaneapi
+  for i in $(seq 30); do
+    curl -sf -o /dev/null #{tls} -u ayatori:test-only #{api}/configuration/version && break
+    sleep 1
+  done
+  curl -s -o /dev/null -w '%{http_code}' #{tls} -u ayatori:test-only #{api}/configuration/frontends/lb_test_6443
+SH
+  its('stdout') { should eq '200' }
+end
+
+# Chef never owns haproxy.cfg: a converge after Ayatori wrote to it updates nothing
+# and keeps the lb_* sections. Kitchen's own converges both ran before Ayatori did,
+# so only this one shows it. Paths are dokken's; client_no_updated_resources.rb fails
+# the run if any resource updates.
+describe command('/opt/cinc/bin/cinc-client -z -l warn -c /opt/kitchen/client.rb ' \
+                 '--config /opt/kitchen/client_no_updated_resources.rb -j /opt/kitchen/dna.json ' \
+                 '--chef-zero-port 8889') do
+  its('exit_status') { should eq 0 }
+end
+
+describe file('/etc/haproxy/haproxy.cfg') do
+  its('content') { should include 'frontend lb_test_6443' }
+end
+
+describe port(5555) do
+  it { should be_listening }
+  its('addresses') { should eq [address] }
+end
+
+# Nothing secret on the node: the Basic password exists only as a SHA-512 crypt hash,
+# and only root can read it. dataplaneapi rewrites its working copy 0644 whatever
+# ExecStartPre installed, so the 0700 directory is what keeps that copy private.
+%w(/etc/dataplaneapi/dataplaneapi.yml /var/lib/dataplaneapi/dataplaneapi.yml).each do |path|
+  describe file(path) do
+    its('owner') { should eq 'root' }
+    its('content') { should match(/password: ['"]?\$6\$/) }
+    its('content') { should_not include 'test-only' }
+  end
+end
+
+describe file('/etc/dataplaneapi/dataplaneapi.yml') do
+  its('mode') { should cmp '0600' }
+end
+
+describe directory('/var/lib/dataplaneapi') do
+  its('mode') { should cmp '0700' }
+  its('owner') { should eq 'root' }
+end
+
 # gobgpd: only over mTLS on the node address, and only VIP-pool /32s get in.
 describe port(50051) do
   it { should be_listening }
