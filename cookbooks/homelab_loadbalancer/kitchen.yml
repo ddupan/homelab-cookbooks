@@ -28,6 +28,9 @@ suites:
     attributes:
       homelab_loadbalancer:
         environment: dev
+        # Never the real Bao: the renewal timer would register an ACME account and
+        # open an order if it ever fired inside a test container.
+        bao: https://bao.invalid:8200
         client_ca_source: file:///etc/lb-test/client-ca.pem
         dataplaneapi:
           # openssl passwd -6 of the test-only password "test-only".

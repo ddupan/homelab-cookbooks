@@ -47,6 +47,13 @@ end
 
 describe systemd_service('spire-agent') do
   it { should be_enabled }
+  it { should_not be_running }
+end
+
+# Enrollment (one-time EAB from homelab-infra) never runs in a converge, so a test
+# run cannot register this container with Bao or SPIRE.
+describe file('/etc/spire-agent/node.crt') do
+  it { should_not exist }
 end
 
 describe command('/usr/local/bin/lego --version') do
