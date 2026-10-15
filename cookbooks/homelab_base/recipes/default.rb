@@ -3,8 +3,8 @@
 
 # bao serves a real Let's Encrypt cert and both endpoints are unauthenticated, so
 # no token touches the node and a CA rotation is picked up on the next run.
-# By HOSTNAME: the cert has DNS SANs only (bao.ad and bao.lab; lab is the target zone).
-bao = 'https://bao.lab.ddupan.top:8200'
+base = node['homelab_base']
+bao = base['bao']
 
 # Shared with infrastructure/chef/converge.sh in homelab-infra: the last policy a
 # manual converge applied. The drift timer why-runs against it.
@@ -44,5 +44,12 @@ end
 
 homelab_base_drift_check policy_dir
 
-homelab_base_spire_node_cert 'default'
-homelab_base_spire_agent 'default'
+homelab_base_spire_node_cert 'default' do
+  server "#{bao}/v1/pki-spire-nodes/roles/node/acme/directory"
+  domain "#{node['hostname']}.#{base['domain']}"
+end
+
+homelab_base_spire_agent 'default' do
+  server_address base['spire_server']
+  trust_domain base['trust_domain']
+end

@@ -7,8 +7,8 @@
 unified_mode true
 
 property :lego_version, String, default: '5.3.1'
-property :server, String, default: 'https://bao.lab.ddupan.top:8200/v1/pki/acme/directory'
-property :domain, String, default: lazy { "#{node['hostname']}.lab.ddupan.top" }
+property :server, String, required: true
+property :domain, String, required: true
 # http-01 on the node address only: a VIP may hold :80 on this host, and binding
 # the wildcard would collide with it.
 property :listen, String, required: true

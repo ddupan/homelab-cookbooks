@@ -87,6 +87,20 @@ describe 'homelab_base::default' do
     end
   end
 
+  context 'with site endpoints from the node policy' do
+    automatic_attributes['hostname'] = 'etcd-pve1'
+    default_attributes['homelab_base'] = { 'bao' => 'https://bao.example:8200', 'domain' => 'site.example',
+                                           'spire_server' => 'spire.example' }
+
+    it 'uses them instead of the cookbook defaults' do
+      is_expected.to render_file('/usr/local/sbin/spire-node-cert')
+        .with_content('https://bao.example:8200/v1/pki-spire-nodes/roles/node/acme/directory')
+        .with_content("--domains 'etcd-pve1.site.example'")
+      expect(chef_run.remote_file('/etc/ssh/openbao_user_ca.pub').source)
+        .to eq(['https://bao.example:8200/v1/ssh-client-signer/public_key'])
+    end
+  end
+
   it 'never carries an EAB credential itself, only the switch when one is passed in' do
     is_expected.to render_file('/usr/local/sbin/spire-node-cert')
       .with_content('${LEGO_EAB_KID:+--eab}')
