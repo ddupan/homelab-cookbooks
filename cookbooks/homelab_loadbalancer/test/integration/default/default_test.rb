@@ -13,6 +13,10 @@ gobgp = "/usr/local/bin/gobgp -u #{address} --tls --tls-ca-file /etc/lb-test/ser
   end
 end
 
+describe file('/usr/local/sbin/ayatori-lb-cert') do
+  its('content') { should include 'https://bao.invalid:8200/v1/pki/acme/directory' }
+end
+
 describe kernel_parameter('net.ipv4.ip_nonlocal_bind') do
   its('value') { should eq 1 }
 end
