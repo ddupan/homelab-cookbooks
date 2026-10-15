@@ -1,3 +1,4 @@
+require 'tmpdir'
 require 'spec_helper'
 
 describe 'homelab_loadbalancer::default' do
@@ -55,15 +56,41 @@ describe 'homelab_loadbalancer::default' do
       .with_content("--http.address '10.60.0.31:80'")
       .with_content("--domains 'lb1.lab.ddupan.top'")
       .with_content('https://bao.lab.ddupan.top:8200/v1/pki/acme/directory')
+      .with_content("--key-type 'RSA2048'")
   end
 
   it 'issues only when no certificate has been deployed yet' do
     expect(chef_run.execute('/usr/local/sbin/ayatori-lb-cert').creates).to eq('/etc/ayatori-lb/tls/server.crt')
   end
 
-  it 'restarts both APIs after a renewal, since they read the certificate at start' do
-    is_expected.to render_file('/usr/local/sbin/ayatori-lb-cert-deploy')
-      .with_content('systemctl try-restart dataplaneapi.service gobgpd.service')
+  # Runs the rendered hook against a stub systemctl: on the first issue neither unit
+  # exists yet (try-restart would exit 5 and fail the issue); on a renewal both do.
+  {
+    'skips units that are not installed yet (first issue)' => [[], []],
+    'restarts both APIs after a renewal, since they read the certificate at start' =>
+      [%w(dataplaneapi.service gobgpd.service), %w(dataplaneapi.service gobgpd.service)],
+  }.each do |name, (installed, restarted)|
+    it name do
+      Dir.mktmpdir do |dir|
+        hook = File.join(dir, 'hook')
+        File.write(hook, chef_run.file('/usr/local/sbin/ayatori-lb-cert-deploy').content
+          .gsub('/etc/ayatori-lb/tls/', "#{dir}/"))
+        File.write(File.join(dir, 'systemctl'), <<~SH)
+          #!/bin/sh
+          case "$1" in
+            cat) case " #{installed.join(' ')} " in *" $2 "*) exit 0 ;; *) exit 1 ;; esac ;;
+            try-restart) echo "$2" >> #{dir}/restarted ;;
+          esac
+        SH
+        File.write(File.join(dir, 'cert'), 'c')
+        File.chmod(0o755, hook, File.join(dir, 'systemctl'))
+        env = { 'PATH' => "#{dir}:/usr/bin:/bin", 'LEGO_HOOK_CERT_PATH' => File.join(dir, 'cert'),
+                'LEGO_HOOK_CERT_KEY_PATH' => File.join(dir, 'cert') }
+        expect(system(env, hook)).to be true
+        log = File.join(dir, 'restarted')
+        expect(File.exist?(log) ? File.read(log).split : []).to eq(restarted)
+      end
+    end
   end
 
   it 'stops the speaker whenever HAProxy stops' do

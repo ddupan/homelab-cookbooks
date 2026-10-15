@@ -13,6 +13,9 @@ property :domain, String, required: true
 # the wildcard would collide with it.
 property :listen, String, required: true
 property :state_dir, String, default: '/var/lib/ayatori-lb-acme'
+# Bao pki/'s ACME role (homelab-infra openbao/terraform/pki.tf, shared with cert-manager)
+# only signs RSA keys; an EC CSR is refused at finalize with badCSR.
+property :key_type, String, default: 'RSA2048'
 
 action :install do
   release = "lego_v#{new_resource.lego_version}_linux_amd64"
@@ -59,7 +62,11 @@ action :install do
       set -eu
       install -m 0644 "$LEGO_HOOK_CERT_PATH" /etc/ayatori-lb/tls/server.crt
       install -m 0600 "$LEGO_HOOK_CERT_KEY_PATH" /etc/ayatori-lb/tls/server.key
-      systemctl try-restart dataplaneapi.service gobgpd.service
+      # The first issue runs before either unit is installed, and try-restart exits 5
+      # for a unit that does not exist; restart only what is there.
+      for unit in dataplaneapi.service gobgpd.service; do
+        if systemctl cat "$unit" >/dev/null 2>&1; then systemctl try-restart "$unit"; fi
+      done
     SH
     mode '0755'
   end
@@ -76,7 +83,7 @@ action :install do
         --path '#{new_resource.state_dir}' \\
         --http \\
         --http.address '#{new_resource.listen}:80' \\
-        --key-type EC256 \\
+        --key-type '#{new_resource.key_type}' \\
         --domains '#{new_resource.domain}' \\
         --renew-days 30 \\
         --deploy-hook /usr/local/sbin/ayatori-lb-cert-deploy
