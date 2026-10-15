@@ -43,6 +43,8 @@ describe 'homelab_base::default' do
 
   it 'validates sshd config before any reload' do
     expect(chef_run.service('ssh').reload_command).to include('sshd -t &&')
+    # SIGHUP kills a socket-activated sshd (it re-binds :22); restart instead.
+    expect(chef_run.service('ssh').reload_command).to end_with('systemctl try-restart ssh')
   end
 
   it 'drift timer only why-runs the last applied policy' do
