@@ -4,7 +4,7 @@ require 'spec_helper'
 describe 'homelab_loadbalancer::default' do
   platform 'debian', '13'
   step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_gobgpd,
-            :homelab_loadbalancer_server_cert
+            :homelab_loadbalancer_server_cert, :homelab_base_verified_release
   automatic_attributes['hostname'] = 'lb1'
   automatic_attributes['ipaddress'] = '10.60.0.31'
   default_attributes['homelab_loadbalancer'] = {
@@ -17,6 +17,15 @@ describe 'homelab_loadbalancer::default' do
     expect(chef_run).to create_remote_file('/etc/apt/keyrings/haproxy.gpg')
     expect(chef_run).to add_apt_repository('haproxy').with(key: nil, signed_by: '/etc/apt/keyrings/haproxy.gpg')
     expect(chef_run).not_to install_apt_package('gpg')
+  end
+
+  # homelab-infra's converge play recreates the dir holding file_cache_path on every
+  # run, so anything cached there is re-downloaded and the apply is never changed=0.
+  it 'downloads nothing into the per-run Chef cache' do
+    paths = chef_run.resource_collection.all_resources
+                    .select { |r| r.declared_type == :remote_file }.map(&:path)
+    expect(paths).to include('/var/cache/homelab-cinc/checksums.txt')
+    expect(paths.grep(/\A#{Regexp.escape(Chef::Config[:file_cache_path])}/)).to be_empty
   end
 
   it 'never renders the file dataplaneapi owns, only creates it when missing' do

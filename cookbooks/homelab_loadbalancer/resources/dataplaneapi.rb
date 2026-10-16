@@ -18,30 +18,14 @@ property :password_hash, String, required: true,
                                  } }
 
 action :install do
-  release = "dataplaneapi_#{new_resource.version}_linux_x86_64"
-  base = "https://github.com/haproxytech/dataplaneapi/releases/download/v#{new_resource.version}"
-  cache = "#{Chef::Config[:file_cache_path]}/dataplaneapi_#{new_resource.version}"
-
-  # Official checksum list, never a hard-coded hash: the tarball is verified against it.
-  remote_file "#{cache}_checksums.txt" do
-    source "#{base}/checksums.txt"
-    retries 3
-    retry_delay 10
-  end
-
-  remote_file "#{cache}.tar.gz" do
-    source "#{base}/#{release}.tar.gz"
-    checksum(lazy { ::File.read("#{cache}_checksums.txt")[/^(\h{64})\s+#{Regexp.escape(release)}\.tar\.gz$/, 1] })
-    retries 3
-    retry_delay 10
-  end
-
-  archive_file "#{cache}.tar.gz" do
-    destination "/opt/dataplaneapi-#{new_resource.version}"
-  end
-
-  link '/usr/local/bin/dataplaneapi' do
-    to "/opt/dataplaneapi-#{new_resource.version}/dataplaneapi"
+  homelab_base_verified_release '/usr/local/bin/dataplaneapi' do
+    url_base "https://github.com/haproxytech/dataplaneapi/releases/download/v#{new_resource.version}"
+    tarball "dataplaneapi_#{new_resource.version}_linux_x86_64.tar.gz"
+    # Upstream's list is a bare checksums.txt; the URL is per version, so the cached
+    # copy is refetched when the version changes.
+    checksums 'checksums.txt'
+    install_dir "/opt/dataplaneapi-#{new_resource.version}"
+    binary 'dataplaneapi'
     notifies :restart, 'service[dataplaneapi]'
   end
 
