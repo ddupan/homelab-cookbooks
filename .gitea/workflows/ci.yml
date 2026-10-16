@@ -15,26 +15,43 @@ jobs:
         cookbook: [homelab_base, homelab_loadbalancer]
     env:
       # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
-      WORKSTATION: docker.io/cincproject/workstation:26.3.0
+      WORKSTATION: cincproject/workstation:26.3.0
     steps:
       - uses: actions/checkout@v4
 
+      # Docker Hub rate-limits anonymous pulls per egress IP, and every Pod runner
+      # starts with an empty image store; all images come through Nexus instead.
+      - id: nexus
+        uses: https://git.ddupan.top/panxiao81/ci-actions/setup-nexus@v1
+        with:
+          oci: 'true'
+
       # The WAN drops at random; every pull retries.
       - name: Pull images
+        env:
+          REGISTRY: ${{ steps.nexus.outputs.oci-public }}
         run: |
-          for image in "$WORKSTATION" docker.io/cincproject/cinc:19 \
-                       docker.io/dokken/ubuntu-24.04 docker.io/dokken/debian-12 \
-                       docker.io/dokken/debian-13; do
-            for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
+          registry="${REGISTRY#https://}"
+          echo "DOKKEN_REGISTRY=$registry" >> "$GITHUB_ENV"
+          echo "WORKSTATION=$registry/$WORKSTATION" >> "$GITHUB_ENV"
+          for image in "$WORKSTATION" cincproject/cinc:19 \
+                       dokken/ubuntu-24.04 dokken/debian-12 dokken/debian-13; do
+            for i in 1 2 3 4 5; do docker pull -q "$registry/$image" && break; sleep 15; done
           done
+          # kitchen-dokken builds its data image FROM <registry>/almalinux:9 without
+          # pulling; an official image is library/<name> behind the proxy.
+          for i in 1 2 3 4 5; do docker pull -q "$registry/library/almalinux:9" && break; sleep 15; done
+          docker tag "$registry/library/almalinux:9" "$registry/almalinux:9"
 
       # Cookstyle + ChefSpec first: seconds, and a failure here skips Kitchen.
       # Kitchen then converges twice per platform (second run must update nothing)
       # and runs the InSpec suite. --network host: the workstation container must
       # reach the dokken bridge, which a default-bridge container cannot.
+      # All of cookbooks/ is mounted: a Policyfile may take a sibling by path.
       - name: Lint, unit, integration
         run: |
           docker run --rm --network host \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD/cookbooks/${{ matrix.cookbook }}:/cb" -w /cb "$WORKSTATION" \
+            -e DOKKEN_REGISTRY \
+            -v "$PWD/cookbooks:/cookbooks" -w "/cookbooks/${{ matrix.cookbook }}" "$WORKSTATION" \
             bash -lc 'cookstyle . && cinc install && cinc exec rspec && kitchen test --destroy=always'

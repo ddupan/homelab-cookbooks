@@ -3,6 +3,10 @@ driver:
   name: dokken
   privileged: true
   chef_version: '19'
+  # CI pulls every image (platform, Cinc, data) through the Nexus Docker Hub proxy:
+  # anonymous Docker Hub pulls are rate-limited per egress IP and the lab shares one.
+  # Unset locally, so a workstation pulls from Docker Hub directly.
+  docker_registry: <%= ENV['DOKKEN_REGISTRY'] || '~' %>
 
 provisioner:
   name: dokken

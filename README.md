@@ -26,13 +26,18 @@ policy lock 属于部署声明，放在 homelab-infra 的 `infrastructure/chef/`
 本机不需要安装 Ruby，用 Cinc Workstation 镜像：
 
 ```bash
-cd cookbooks/homelab_base
+cb=homelab_base
 docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$PWD:/cb" -w /cb docker.io/cincproject/workstation:26.3.0 \
+  -v "$PWD/cookbooks:/cookbooks" -w "/cookbooks/$cb" docker.io/cincproject/workstation:26.3.0 \
   bash -lc 'cookstyle . && cinc install && cinc exec rspec && kitchen test --destroy=always'
 ```
 
 需要 `--network host`：默认 bridge 上的容器连不到 dokken 网络，rsync 会超时。
+挂载整个 `cookbooks/`：Policyfile 会按路径引用同级 cookbook（homelab_loadbalancer 依赖 homelab_base）。
+
+Docker Hub 对匿名拉取按出口 IP 限流，lab 共用一个出口。被限流时加
+`-e DOKKEN_REGISTRY=nexus.ad.ddupan.top/oci-public`，Kitchen 的所有镜像都改走 Nexus 代理
+（CI 一直这样做）。
 
 ## Cookbooks
 
