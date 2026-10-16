@@ -13,6 +13,14 @@ describe 'homelab_loadbalancer::default' do
     'bgp' => { 'local_as' => 65101, 'neighbors' => { '10.60.0.1' => 65000 }, 'vip_pool' => '10.62.1.0/24' },
   }
 
+  it 'installs gpg before adding the HAProxy repository, which verifies its key with it' do
+    resources = chef_run.resource_collection.all_resources
+    gpg = resources.index { |r| r.declared_type == :apt_package && r.name == 'gpg' }
+    repo = resources.index { |r| r.declared_type == :apt_repository && r.name == 'haproxy' }
+    expect(gpg).not_to be_nil
+    expect(gpg).to be < repo
+  end
+
   it 'never renders the file dataplaneapi owns, only creates it when missing' do
     expect(chef_run).to create_file_if_missing('/etc/haproxy/haproxy.cfg')
     expect(chef_run).not_to create_file('/etc/haproxy/haproxy.cfg')

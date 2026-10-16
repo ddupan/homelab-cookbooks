@@ -15,6 +15,15 @@ property :hard_stop_after, String, default: '30m'
 action :install do
   # Debian 13 ships 3.0; the LB contract (Data Plane API v3.4, dynamic servers in
   # maint, frontend/backend name rules) was verified against 3.4.
+  # apt_repository verifies the key with gpg, which minimal images (the LXC templates
+  # the LB hosts are built from) do not ship; Kitchen's dokken image does, so only a
+  # real host shows it.
+  apt_package 'gpg' do
+    options '--no-install-recommends'
+    retries 3
+    retry_delay 5
+  end
+
   apt_repository 'haproxy' do
     uri 'http://haproxy.debian.net'
     distribution "trixie-backports-#{new_resource.version}"
