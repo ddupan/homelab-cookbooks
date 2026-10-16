@@ -15,20 +15,26 @@ property :hard_stop_after, String, default: '30m'
 action :install do
   # Debian 13 ships 3.0; the LB contract (Data Plane API v3.4, dynamic servers in
   # maint, frontend/backend name rules) was verified against 3.4.
-  # apt_repository verifies the key with gpg, which minimal images (the LXC templates
-  # the LB hosts are built from) do not ship; Kitchen's dokken image does, so only a
-  # real host shows it.
-  apt_package 'gpg' do
-    options '--no-install-recommends'
+  # Upstream publishes a binary keyring, so it is fetched as-is and handed to apt via
+  # signed-by. apt_repository's own `key` path imports it with gpg and gpg-agent, which
+  # minimal images (the LB hosts' LXC template) lack; Kitchen's dokken image has them,
+  # so only a real host showed it.
+  remote_file '/etc/apt/keyrings/haproxy.gpg' do
+    source 'https://haproxy.debian.net/haproxy-archive-keyring.gpg'
+    mode '0644'
     retries 3
-    retry_delay 5
+    retry_delay 10
+    # An HTML error page as the keyring would only fail later, at apt update; refuse
+    # anything that does not start with an OpenPGP public-key packet.
+    verify { |path| [0x99, 0xc6].include?(::File.binread(path, 1).ord) }
   end
 
   apt_repository 'haproxy' do
     uri 'http://haproxy.debian.net'
     distribution "trixie-backports-#{new_resource.version}"
     components ['main']
-    key 'https://haproxy.debian.net/haproxy-archive-keyring.gpg'
+    key nil
+    signed_by '/etc/apt/keyrings/haproxy.gpg'
   end
 
   apt_preference 'haproxy' do
