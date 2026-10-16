@@ -3,6 +3,12 @@
 # call the APIs the way Ayatori does. Test material only.
 package 'openssl'
 
+# The LB hosts' LXC template has no gnupg, dokken's image does; without this, Kitchen
+# passes recipes that call gpg and real hosts fail on them.
+package %w(gnupg gpg-agent dirmngr gpg) do
+  action :purge
+end
+
 directory '/etc/lb-test'
 
 execute 'test certificates' do
