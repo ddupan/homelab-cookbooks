@@ -36,7 +36,7 @@ docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
 挂载整个 `cookbooks/`：Policyfile 会按路径引用同级 cookbook（homelab_loadbalancer 依赖 homelab_base）。
 
 Docker Hub 对匿名拉取按出口 IP 限流，lab 共用一个出口。被限流时加
-`-e DOKKEN_REGISTRY=nexus.ad.ddupan.top/oci-public`，Kitchen 的所有镜像都改走 Nexus 代理
+`-e DOKKEN_REGISTRY=nexus.lab.ddupan.top/oci-public`，Kitchen 的所有镜像都改走 Nexus 代理
 （CI 一直这样做）。
 
 ## Cookbooks
