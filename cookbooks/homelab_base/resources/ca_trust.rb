@@ -5,6 +5,9 @@ property :ca_name, String, name_property: true
 property :source, String, required: true
 
 action :install do
+  # Declared, not assumed: update-ca-certificates and the directory below come from it.
+  apt_package 'ca-certificates'
+
   remote_file "/usr/local/share/ca-certificates/#{new_resource.ca_name}.crt" do
     source new_resource.source
     mode '0644'
