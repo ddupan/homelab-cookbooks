@@ -24,33 +24,18 @@ property :key, String, required: true
 property :client_ca, String, required: true
 
 action :install do
-  release = "gobgp_#{new_resource.version}_linux_amd64"
-  base = "https://github.com/osrg/gobgp/releases/download/v#{new_resource.version}"
-  cache = "#{Chef::Config[:file_cache_path]}/#{release}"
-
-  # Official checksum list, never a hard-coded hash: the tarball is verified against it.
-  remote_file "#{cache}_checksums.txt" do
-    source "#{base}/gobgp_#{new_resource.version}_checksums.txt"
-    retries 3
-    retry_delay 10
+  homelab_base_verified_release '/usr/local/bin/gobgpd' do
+    url_base "https://github.com/osrg/gobgp/releases/download/v#{new_resource.version}"
+    tarball "gobgp_#{new_resource.version}_linux_amd64.tar.gz"
+    checksums "gobgp_#{new_resource.version}_checksums.txt"
+    install_dir "/opt/gobgp-#{new_resource.version}"
+    binary 'gobgpd'
+    notifies :restart, 'service[gobgpd]'
   end
 
-  remote_file "#{cache}.tar.gz" do
-    source "#{base}/#{release}.tar.gz"
-    checksum(lazy { ::File.read("#{cache}_checksums.txt")[/^(\h{64})\s+#{Regexp.escape(release)}\.tar\.gz$/, 1] })
-    retries 3
-    retry_delay 10
-  end
-
-  archive_file "#{cache}.tar.gz" do
-    destination "/opt/gobgp-#{new_resource.version}"
-  end
-
-  %w(gobgpd gobgp).each do |binary|
-    link "/usr/local/bin/#{binary}" do
-      to "/opt/gobgp-#{new_resource.version}/#{binary}"
-      notifies :restart, 'service[gobgpd]' if binary == 'gobgpd'
-    end
+  # The CLI ships in the same tarball.
+  link '/usr/local/bin/gobgp' do
+    to "/opt/gobgp-#{new_resource.version}/gobgp"
   end
 
   directory '/etc/gobgpd'

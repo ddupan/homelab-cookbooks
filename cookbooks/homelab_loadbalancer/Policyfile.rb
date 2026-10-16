@@ -4,4 +4,5 @@
 name 'homelab_loadbalancer'
 run_list 'loadbalancer_test::default', 'homelab_loadbalancer::default'
 cookbook 'homelab_loadbalancer', path: '.'
+cookbook 'homelab_base', path: '../homelab_base'
 cookbook 'loadbalancer_test', path: 'test/fixtures/cookbooks/loadbalancer_test'
