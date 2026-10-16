@@ -37,8 +37,7 @@ action :install do
   end
 
   # socat: the reload saves server state through the admin socket first.
-  # procps: sysctl below.
-  apt_package %w(haproxy socat procps) do
+  apt_package %w(haproxy socat) do
     options '--no-install-recommends'
     retries 3
     retry_delay 5
