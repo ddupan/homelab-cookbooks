@@ -56,6 +56,7 @@ describe 'homelab_loadbalancer::default' do
     is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml')
       .with_content(%r{validate_files_before:\n\s+- /etc/haproxy/base.cfg})
       .with_content('tls_ca: /etc/ayatori-lb/client-ca.pem')
+      .with_content('reload_cmd: systemctl reload haproxy.service')
   end
 
   it 'applies the VIP-only policy globally, where gobgpd honours it' do

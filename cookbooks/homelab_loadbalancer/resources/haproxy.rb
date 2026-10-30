@@ -102,7 +102,9 @@ action :install do
   directory '/etc/systemd/system/haproxy.service.d'
 
   # The package unit validates and loads only haproxy.cfg; both files are needed, and
-  # every reload saves server state first.
+  # every reload saves server state first. Saving is best-effort ('-'): a failed reload
+  # (e.g. a bind that -c cannot catch) leaves the old worker's stats socket renamed to
+  # *.tmp, and a mandatory save would then refuse every later reload until a restart.
   file '/etc/systemd/system/haproxy.service.d/ayatori.conf' do
     content <<~UNIT
       [Service]
@@ -113,7 +115,7 @@ action :install do
       ExecStart=/usr/sbin/haproxy -Ws -S /run/haproxy-master.sock -p /run/haproxy.pid -f /etc/haproxy/base.cfg -f /etc/haproxy/haproxy.cfg
       ExecReload=
       ExecReload=/usr/sbin/haproxy -c -q -f /etc/haproxy/base.cfg -f /etc/haproxy/haproxy.cfg
-      ExecReload=/bin/sh -c 'echo "show servers state" | socat stdio /run/haproxy/admin.sock > /var/lib/haproxy/server-state.tmp && mv -f /var/lib/haproxy/server-state.tmp /var/lib/haproxy/server-state'
+      ExecReload=-/bin/sh -c 'echo "show servers state" | socat stdio /run/haproxy/admin.sock > /var/lib/haproxy/server-state.tmp && mv -f /var/lib/haproxy/server-state.tmp /var/lib/haproxy/server-state'
       ExecReload=/bin/kill -USR2 $MAINPID
     UNIT
     mode '0644'
