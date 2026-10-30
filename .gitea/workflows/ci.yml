@@ -17,7 +17,7 @@ jobs:
       # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
       WORKSTATION: cincproject/workstation:26.3.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Docker Hub rate-limits anonymous pulls per egress IP, and every Pod runner
       # starts with an empty image store; all images come through Nexus instead.
