@@ -9,6 +9,12 @@ package %w(gnupg gpg-agent dirmngr gpg) do
   action :purge
 end
 
+# Nor sudo, which dataplaneapi's systemd reload strategy silently requires. The package
+# refuses removal without a root password, so remove only the binary.
+file '/usr/bin/sudo' do
+  action :delete
+end
+
 directory '/etc/lb-test'
 
 execute 'test certificates' do

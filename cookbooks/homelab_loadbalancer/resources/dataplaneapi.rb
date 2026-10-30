@@ -69,8 +69,12 @@ action :install do
         master_worker_mode: true
         master_runtime: /run/haproxy-master.sock
         reload:
-          reload_strategy: systemd
-          service_name: haproxy.service
+          # The systemd strategy hard-codes `sudo -n systemctl ...`, and the LXC
+          # template has no sudo; dataplaneapi runs as root, so call systemctl directly.
+          reload_strategy: custom
+          reload_cmd: systemctl reload haproxy.service
+          restart_cmd: systemctl restart haproxy.service
+          status_cmd: systemctl is-active haproxy.service
           reload_delay: 5
           # Its own check runs haproxy -c on haproxy.cfg alone, which has no global,
           # defaults or resolvers; validate the way the service loads it.
