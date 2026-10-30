@@ -34,6 +34,8 @@ homelab_loadbalancer_server_cert 'default' do
   listen address
 end
 
+homelab_loadbalancer_vip_guard lb['bgp']['vip_pool']
+
 homelab_loadbalancer_haproxy 'default' do
   resolver lb['resolver']
 end

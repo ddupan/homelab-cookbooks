@@ -158,3 +158,24 @@ describe command('systemctl stop haproxy && sleep 1 && systemctl is-active gobgp
                  'systemctl start haproxy && sleep 2 && systemctl is-active gobgpd') do
   its('stdout') { should eq "inactive\nactive\n" }
 end
+
+# Anything still on the wildcard is unreachable through a VIP but not through the
+# host address. 10.62.0.9 is local here the way the agent makes a VIP local.
+describe command(<<~SH) do
+  set -e
+  host=$(hostname -I | awk '{print $1}')
+  ip addr add 10.62.0.9/32 dev lo
+  socat TCP-LISTEN:7777,reuseaddr,fork SYSTEM:'echo up' & pid=$!
+  sleep 1
+  vip=$(socat -T2 - TCP:10.62.0.9:7777 2>&1 </dev/null || true)
+  direct=$(socat -T2 - TCP:$host:7777 </dev/null)
+  kill $pid; ip addr del 10.62.0.9/32 dev lo
+  echo "vip=$vip"; echo "direct=$direct"
+SH
+  its('stdout') { should match(/^vip=.*Connection refused/) }
+  its('stdout') { should include 'direct=up' }
+end
+
+describe service('ayatori-vip-guard') do
+  it { should be_enabled }
+end

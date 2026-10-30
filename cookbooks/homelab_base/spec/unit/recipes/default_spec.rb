@@ -47,6 +47,23 @@ describe 'homelab_base::default' do
     expect(chef_run.service('ssh').reload_command).to end_with('systemctl try-restart ssh')
   end
 
+  it 'listens on all addresses unless told otherwise' do
+    is_expected.not_to render_file('/etc/systemd/system/ssh.socket.d/listen.conf')
+    is_expected.to render_file('/etc/default/prometheus-node-exporter').with_content('--web.listen-address=:9100')
+  end
+
+  context 'with a listen address' do
+    default_attributes['homelab_base'] = { 'listen_address' => '10.60.0.31' }
+
+    it 'binds sshd, its socket and node_exporter to it' do
+      is_expected.to render_file('/etc/ssh/sshd_config.d/40-listen.conf').with_content('ListenAddress 10.60.0.31')
+      is_expected.to render_file('/etc/systemd/system/ssh.socket.d/listen.conf')
+        .with_content("ListenStream=\nListenStream=10.60.0.31:22\n")
+      is_expected.to render_file('/etc/default/prometheus-node-exporter')
+        .with_content('--web.listen-address=10.60.0.31:9100')
+    end
+  end
+
   it 'drift timer only why-runs the last applied policy' do
     service = chef_run.systemd_unit('homelab-cinc-drift.service')
     expect(service.content).to include('cinc-client -z --why-run')
