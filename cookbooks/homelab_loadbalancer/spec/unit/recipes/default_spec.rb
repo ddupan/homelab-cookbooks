@@ -4,7 +4,7 @@ require 'spec_helper'
 describe 'homelab_loadbalancer::default' do
   platform 'debian', '13'
   step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_gobgpd,
-            :homelab_loadbalancer_server_cert, :homelab_base_verified_release
+            :homelab_loadbalancer_server_cert, :homelab_loadbalancer_vip_guard, :homelab_base_verified_release
   automatic_attributes['hostname'] = 'lb1'
   automatic_attributes['ipaddress'] = '10.60.0.31'
   default_attributes['homelab_loadbalancer'] = {
@@ -12,6 +12,16 @@ describe 'homelab_loadbalancer::default' do
     'dataplaneapi' => { 'password_hash' => '$6$salt$hash' },
     'bgp' => { 'local_as' => 65101, 'neighbors' => { '10.60.0.1' => 65000 }, 'vip_pool' => '10.62.1.0/24' },
   }
+
+  it 'moves host services off the wildcard address' do
+    expect(chef_run.node['homelab_base']['listen_address']).to eq('10.60.0.31')
+  end
+
+  it 'rejects VIP traffic that would reach a wildcard listener' do
+    is_expected.to render_file('/etc/ayatori-lb/vip-guard.nft')
+      .with_content('ip daddr 10.62.1.0/24 socket wildcard 1 reject')
+    is_expected.to enable_systemd_unit('ayatori-vip-guard.service')
+  end
 
   it 'trusts the HAProxy repository by its fetched keyring, with no gpg import on the host' do
     expect(chef_run).to create_remote_file('/etc/apt/keyrings/haproxy.gpg')

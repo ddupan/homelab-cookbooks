@@ -4,6 +4,9 @@ unified_mode true
 
 property :source, String, name_property: true
 property :key_path, String, default: '/etc/ssh/openbao_user_ca.pub'
+# Listen only on this address instead of all of them (homelab_base.listen_address).
+# Lives here because this resource owns the ssh service and its safe restart.
+property :listen, String
 
 action :install do
   # Owns its precondition rather than assuming every image ships sshd (dokken's do not).
@@ -24,6 +27,42 @@ action :install do
     content "# Managed by Cinc (homelab_base)\nTrustedUserCAKeys #{new_resource.key_path}\n"
     mode '0644'
     notifies :reload, 'service[ssh]'
+  end
+
+  if new_resource.listen
+    file '/etc/ssh/sshd_config.d/40-listen.conf' do
+      content "# Managed by Cinc (homelab_base)\nListenAddress #{new_resource.listen}\n"
+      mode '0644'
+      notifies :reload, 'service[ssh]'
+    end
+
+    # Under socket activation sshd uses the socket systemd hands it and ignores
+    # ListenAddress, so ssh.socket must listen on the address too. FreeBind: the
+    # socket comes up before the network has assigned the address at boot.
+    directory '/etc/systemd/system/ssh.socket.d'
+
+    file '/etc/systemd/system/ssh.socket.d/listen.conf' do
+      content <<~UNIT
+        # Managed by Cinc (homelab_base)
+        [Socket]
+        ListenStream=
+        ListenStream=#{new_resource.listen}:22
+        FreeBind=yes
+      UNIT
+      mode '0644'
+      notifies :run, 'execute[rebind ssh.socket]'
+    end
+
+    # The running sshd holds the old listening fd and systemd refuses to restart the
+    # socket while its service is active, so stop sshd first (KillMode=process: open
+    # sessions survive). ssh.service is started whatever the socket does: without a
+    # socket it binds ListenAddress itself, so a failed rebind never locks us out.
+    execute 'rebind ssh.socket' do
+      command 'systemctl daemon-reload && if systemctl -q is-enabled ssh.socket; then ' \
+              'systemctl stop ssh.service; systemctl restart ssh.socket; rc=$?; ' \
+              'systemctl start ssh.service && exit $rc; fi'
+      action :nothing
+    end
   end
 
   service 'ssh' do

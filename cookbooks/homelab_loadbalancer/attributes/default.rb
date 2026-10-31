@@ -14,3 +14,6 @@ default['homelab_loadbalancer']['bgp']['neighbors'] = {} # address => peer AS
 default['homelab_loadbalancer']['bgp']['vip_pool'] = nil # only /32s from it are exported
 # Defaults to the environment's root in Bao; Kitchen points it at a fixture file.
 default['homelab_loadbalancer']['client_ca_source'] = nil
+# VIPs are local addresses on this host: any wildcard listener would answer on every
+# VIP and keep its port from ever being used by one. Host services bind the host IP.
+default['homelab_base']['listen_address'] = node['ipaddress']

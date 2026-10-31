@@ -36,10 +36,13 @@ homelab_base_ca_trust 'ddupan-internal-ca' do
   source "#{bao}/v1/pki/ca/pem"
 end
 
-homelab_base_ssh_ca_trust "#{bao}/v1/ssh-client-signer/public_key"
+homelab_base_ssh_ca_trust "#{bao}/v1/ssh-client-signer/public_key" do
+  listen base['listen_address'] if base['listen_address']
+end
 
 homelab_base_node_exporter 'default' do
   textfile_dir textfile_dir
+  listen "#{base['listen_address']}:9100" if base['listen_address']
 end
 
 homelab_base_drift_check policy_dir
