@@ -3,13 +3,14 @@ require 'spec_helper'
 
 describe 'homelab_loadbalancer::default' do
   platform 'debian', '13'
-  step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_gobgpd,
+  step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_agent,
             :homelab_loadbalancer_server_cert, :homelab_loadbalancer_vip_guard, :homelab_base_verified_release
   automatic_attributes['hostname'] = 'lb1'
   automatic_attributes['ipaddress'] = '10.60.0.31'
   default_attributes['homelab_loadbalancer'] = {
     'environment' => 'prod',
     'dataplaneapi' => { 'password_hash' => '$6$salt$hash' },
+    'agent' => { 'version' => '0.3.0' },
     'bgp' => { 'local_as' => 65101, 'neighbors' => { '10.60.0.1' => 65000 }, 'vip_pool' => '10.62.1.0/24' },
   }
 
@@ -48,6 +49,7 @@ describe 'homelab_loadbalancer::default' do
       .with_content('server-state-file /var/lib/haproxy/server-state')
       .with_content('load-server-state-from-file global')
       .with_content('resolvers lan')
+      .with_content('stats socket /run/haproxy/agent.sock mode 660 group haproxy level user')
   end
 
   it 'loads both files and saves server state before every reload' do
@@ -69,12 +71,31 @@ describe 'homelab_loadbalancer::default' do
       .with_content('reload_cmd: systemctl reload haproxy.service')
   end
 
-  it 'applies the VIP-only policy globally, where gobgpd honours it' do
-    is_expected.to render_file('/etc/gobgpd/gobgpd.toml').with_content { |toml|
-      expect(toml).to include('[global.apply-policy.config]')
-      expect(toml).not_to include('neighbors.apply-policy')
-      expect(toml).to include('ip-prefix = "10.62.1.0/24"').and include('masklength-range = "32..32"')
-    }
+  it 'installs the agent from the pinned Ayatori release' do
+    expect(chef_run.remote_file('/var/cache/homelab-cinc/ayatori-lb-agent_0.3.0_linux_amd64.tar.gz').source)
+      .to eq(['https://git.ddupan.top/panxiao81/ayatori/releases/download/v0.3.0/ayatori-lb-agent_0.3.0_linux_amd64.tar.gz'])
+  end
+
+  it 'configures the agent in the schema it parses strictly' do
+    config = JSON.parse(chef_run.file('/etc/ayatori/lb-agent.yaml').content)
+    expect(config).to eq(
+      'asn' => 65101, 'routerID' => '10.60.0.31',
+      'neighbors' => [{ 'address' => '10.60.0.1', 'asn' => 65000 }],
+      'vipPool' => '10.62.1.0/24', 'haproxySocket' => '/run/haproxy/agent.sock',
+      'metricsAddress' => '10.60.0.31:9641'
+    )
+  end
+
+  it 'gives the agent only lo management and the read-only HAProxy socket' do
+    unit = chef_run.systemd_unit('ayatori-lb-agent.service').content
+    expect(unit).to include('User=ayatori-lb-agent').and include('SupplementaryGroups=haproxy')
+    expect(unit).to include('CapabilityBoundingSet=CAP_NET_ADMIN')
+    expect(unit).not_to include('BindsTo=')
+  end
+
+  it 'removes the gobgpd speaker it replaces' do
+    expect(chef_run).to delete_file('/etc/systemd/system/gobgpd.service')
+    expect(chef_run).to delete_directory('/etc/gobgpd')
   end
 
   it "answers http-01 on the node address only, for the node's lab name" do
@@ -93,8 +114,8 @@ describe 'homelab_loadbalancer::default' do
   # exists yet (try-restart would exit 5 and fail the issue); on a renewal both do.
   {
     'skips units that are not installed yet (first issue)' => [[], []],
-    'restarts both APIs after a renewal, since they read the certificate at start' =>
-      [%w(dataplaneapi.service gobgpd.service), %w(dataplaneapi.service gobgpd.service)],
+    'restarts dataplaneapi after a renewal, since it reads the certificate at start' =>
+      [%w(dataplaneapi.service), %w(dataplaneapi.service)],
   }.each do |name, (installed, restarted)|
     it name do
       Dir.mktmpdir do |dir|
@@ -119,18 +140,14 @@ describe 'homelab_loadbalancer::default' do
     end
   end
 
-  it 'stops the speaker whenever HAProxy stops' do
-    expect(chef_run.systemd_unit('gobgpd.service').content).to include('BindsTo=haproxy.service')
-  end
-
   it 'refuses a plaintext Basic password' do
     klass = Chef::Resource.resource_for_node(:homelab_loadbalancer_dataplaneapi, chef_run.node)
     expect { klass.new('default').password_hash('plaintext') }.to raise_error(Chef::Exceptions::ValidationFailed)
   end
 
-  it 'refuses a wildcard gRPC listen address' do
-    klass = Chef::Resource.resource_for_node(:homelab_loadbalancer_gobgpd, chef_run.node)
-    expect { klass.new('default').api_listen('0.0.0.0:50051') }.to raise_error(Chef::Exceptions::ValidationFailed)
+  it 'refuses a wildcard status and metrics address' do
+    klass = Chef::Resource.resource_for_node(:homelab_loadbalancer_agent, chef_run.node)
+    expect { klass.new('default').metrics_address('0.0.0.0:9641') }.to raise_error(Chef::Exceptions::ValidationFailed)
   end
 
   context 'without an environment' do

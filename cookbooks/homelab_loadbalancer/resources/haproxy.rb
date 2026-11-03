@@ -49,8 +49,8 @@ action :install do
     retry_delay 5
   end
 
-  # Frontends bind their VIP before gobgpd announces it, i.e. before the address is
-  # routed here at all.
+  # Frontends bind their VIP before the agent makes it local and announces it, i.e.
+  # before the address is routed here at all.
   # Not the built-in sysctl resource: it runs `sysctl -p`, which fails on Debian 13
   # because /etc/sysctl.conf no longer exists.
   file '/etc/sysctl.d/90-ayatori-loadbalancer.conf' do
@@ -70,6 +70,10 @@ action :install do
           user haproxy
           group haproxy
           stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+          # The LB agent's own socket: read-only (show stat), group haproxy so its user can
+          # connect. Not admin.sock: the package's haproxy.cfg binds that path again
+          # without a group, and the later bind wins.
+          stats socket /run/haproxy/agent.sock mode 660 group haproxy level user
           # Saved by ExecReload; without it every reload starts each server in its
           # init-state (fully-down) and the whole host drops traffic for rise x inter.
           server-state-file /var/lib/haproxy/server-state
