@@ -1,18 +1,64 @@
 name: ci
 
+# PR 是唯一的门：合并到 main 与打 tag 不再重跑同一份代码（之前每个变更 PR、main、tag 各跑一遍，
+# 每遍三个 cookbook）。PR 只测改动到的 cookbook 及依赖它的 cookbook；手动触发时全部测。
 on:
-  push:
-    branches: [main]
-    tags: ['*']
   pull_request:
+  workflow_dispatch:
 
 jobs:
+  changes:
+    runs-on: [self-hosted, pod]
+    outputs:
+      cookbooks: ${{ steps.pick.outputs.cookbooks }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # 依赖关系取自各 metadata.rb 的 depends：改 homelab_base 时，依赖它的 cookbook 一并测。
+      # CI 配置本身改动时全部测。
+      - id: pick
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          all=$(ls cookbooks)
+          if [ -z "${BASE:-}" ]; then
+            changed=$all
+          else
+            files=$(git diff --name-only "$BASE"...HEAD)
+            if printf '%s\n' "$files" | grep -q '^\.gitea/'; then
+              changed=$all
+            else
+              changed=$(printf '%s\n' "$files" | sed -n 's|^cookbooks/\([^/]*\)/.*|\1|p' | sort -u)
+            fi
+          fi
+          picked=""
+          for cb in $all; do
+            for c in $changed; do
+              if [ "$cb" = "$c" ] || grep -q "^depends '$c'" "cookbooks/$cb/metadata.rb"; then
+                picked="$picked $cb"
+                break
+              fi
+            done
+          done
+          json="[]"
+          if [ -n "$picked" ]; then
+            json=$(printf '"%s",' $picked)
+            json="[${json%,}]"
+          fi
+          echo "cookbooks=$json" >> "$GITHUB_OUTPUT"
+          echo "testing: $json"
+
   test:
+    needs: changes
+    if: needs.changes.outputs.cookbooks != '[]'
     runs-on: [self-hosted, pod]
     strategy:
       fail-fast: false
       matrix:
-        cookbook: [homelab_base, homelab_loadbalancer, homelab_ayatori]
+        cookbook: ${{ fromJSON(needs.changes.outputs.cookbooks) }}
     env:
       # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
       WORKSTATION: cincproject/workstation:26.3.0
