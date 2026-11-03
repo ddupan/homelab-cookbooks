@@ -1,0 +1,241 @@
+# Managed by Cinc (homelab_ayatori)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flux-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: <%= @control_namespace %>
+---
+# source-controller 只管理 Source 对象并读取其引用的 Secret/ConfigMap。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-source-controller
+rules:
+- apiGroups: [source.toolkit.fluxcd.io]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: [secrets, configmaps]
+  verbs: [get, list, watch]
+- apiGroups: ["", events.k8s.io]
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-source-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-source-controller
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: flux-source-controller
+---
+# kustomize-controller 应用 CRD、RBAC 等任意清单，与上游安装一致使用 cluster-admin。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-kustomize-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: flux-kustomize-controller
+---
+# kube-state-metrics 只读 CRD 与需要导出状态的 CR。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-state-metrics
+rules:
+- apiGroups: [apiextensions.k8s.io]
+  resources: [customresourcedefinitions]
+  verbs: [list, watch]
+- apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, external-secrets.io, database.ayatori.ddupan.top]
+  resources: ["*"]
+  verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-state-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-state-metrics
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: kube-state-metrics
+---
+# ESO 以 --namespace 运行，上游 ClusterRole 只在本 namespace 内生效。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: external-secrets-controller
+  namespace: <%= @control_namespace %>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-secrets-controller
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: external-secrets
+---
+# 环境只跟随本 role 所属 release 的 tag，不跟随 main。
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: ayatori
+  namespace: flux-system
+spec:
+  interval: 10m
+  url: <%= @repository %>
+  ref:
+    tag: <%= @release %>
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ayatori-crds
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: ayatori
+  path: ./deploy/flux/crds
+  prune: false
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ayatori-control-plane
+  namespace: flux-system
+spec:
+  interval: 10m
+  dependsOn:
+  - name: ayatori-crds
+  sourceRef:
+    kind: GitRepository
+    name: ayatori
+  path: ./deploy/flux/control-plane
+  prune: true
+  postBuild:
+    substitute:
+      OPENBAO_ADDRESS: <%= @openbao_address.to_json %>
+      OPENBAO_KUBERNETES_MOUNT: <%= "kubernetes-ayatori-#{@environment}".to_json %>
+      OPENBAO_EXTERNAL_SECRETS_ROLE: <%= "ayatori-#{@environment}-external-secrets".to_json %>
+      MANAGEMENT_CREDENTIAL_PATH: <%= "infra/postgresql/ayatori/#{@environment}".to_json %>
+      POSTGRESQL_INSTANCE: <%= @postgresql['name'].to_json %>
+      POSTGRESQL_HOST: <%= @postgresql['host'].to_json %>
+      POSTGRESQL_HOSTADDR: <%= @postgresql['hostaddr'].to_json %>
+      POSTGRESQL_PORT: "<%= @postgresql['port'] %>"
+<% if @loadbalancer -%>
+---
+# LB 凭据 Secret；manager 启动时读取，同步前 manager 启动失败并由 quadlet 重试。
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ayatori-loadbalancer
+  namespace: flux-system
+spec:
+  interval: 10m
+  dependsOn:
+  - name: ayatori-control-plane
+  sourceRef:
+    kind: GitRepository
+    name: ayatori
+  path: ./deploy/flux/loadbalancer
+  prune: true
+  postBuild:
+    substitute:
+      AYATORI_ENVIRONMENT: <%= @environment.to_json %>
+      OPENBAO_ADDRESS: <%= @openbao_address.to_json %>
+      OPENBAO_KUBERNETES_MOUNT: <%= "kubernetes-ayatori-#{@environment}".to_json %>
+      OPENBAO_EXTERNAL_SECRETS_ROLE: <%= "ayatori-#{@environment}-external-secrets".to_json %>
+      POWERDNS_API_KEY_PATH: <%= @dns_api_key['path'].to_json %>
+      POWERDNS_API_KEY_PROPERTY: <%= @dns_api_key['property'].to_json %>
+<% end -%>
+<% if @gitops -%>
+---
+# 部署方 Git 仓库中的期望状态（Tenant 等）。以受限 SA 模拟应用，仓库写入者不能借
+# kustomize-controller 的 cluster-admin 改动控制面本身。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitops-tenants
+  namespace: flux-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ayatori-gitops-tenants
+rules:
+- apiGroups: [""]
+  resources: [namespaces]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [database.ayatori.ddupan.top]
+  resources: [postgresqltenants, postgresqldatabases]
+  verbs: [get, list, watch, create, update, patch, delete]
+<% if @loadbalancer -%>
+# LB 主机由部署方仓库声明（ADR-0018），不再由部署工具写入。
+- apiGroups: [network.ayatori.ddupan.top]
+  resources: [loadbalancerhosts]
+  verbs: [get, list, watch, create, update, patch, delete]
+<% end -%>
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ayatori-gitops-tenants
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ayatori-gitops-tenants
+subjects:
+- kind: ServiceAccount
+  name: gitops-tenants
+  namespace: flux-system
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: gitops
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: <%= @gitops['url'] %>
+  ref:
+    branch: <%= @gitops['branch'] || 'main' %>
+  ignore: |
+    /*
+    !<%= @gitops['path'].delete_prefix('./') %>/
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: gitops
+  namespace: flux-system
+spec:
+  interval: 10m
+  dependsOn:
+  - name: ayatori-crds
+  sourceRef:
+    kind: GitRepository
+    name: gitops
+  path: <%= @gitops['path'] %>
+  prune: true
+  serviceAccountName: gitops-tenants
+<% end -%>

@@ -1,0 +1,26 @@
+# 客户端证书（ADR-0021）：bootstrap token 首次申请与持有者续签都只需要提交、读取 CSR。
+# 批准不在这里：首次由部署方核对后批准，续签由 ayatori-manager 的批准者批准。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ayatori:client-certificate-requester
+rules:
+  - apiGroups: [certificates.k8s.io]
+    resources: [certificatesigningrequests]
+    verbs: [create, get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ayatori:client-certificate-requester
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ayatori:client-certificate-requester
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:bootstrappers:ayatori
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:ayatori:client-certificates
