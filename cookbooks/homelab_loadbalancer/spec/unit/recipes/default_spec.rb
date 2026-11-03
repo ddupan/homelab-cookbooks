@@ -49,7 +49,7 @@ describe 'homelab_loadbalancer::default' do
       .with_content('server-state-file /var/lib/haproxy/server-state')
       .with_content('load-server-state-from-file global')
       .with_content('resolvers lan')
-      .with_content('stats socket /run/haproxy/agent.sock mode 660 group haproxy level user')
+      .with_content('stats socket /run/haproxy/agent.sock mode 660 group haproxy level operator')
   end
 
   it 'loads both files and saves server state before every reload' do
