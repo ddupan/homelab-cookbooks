@@ -43,6 +43,7 @@ end
 homelab_base_node_exporter 'default' do
   textfile_dir textfile_dir
   listen "#{base['listen_address']}:9100" if base['listen_address']
+  extra_args base['node_exporter']['extra_args'].to_a
 end
 
 homelab_base_drift_check policy_dir

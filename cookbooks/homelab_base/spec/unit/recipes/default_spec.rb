@@ -6,6 +6,14 @@ describe 'homelab_base::default' do
             :homelab_base_drift_check, :homelab_base_spire_agent,
             :homelab_base_spire_node_cert, :homelab_base_verified_release
 
+  context 'with extra node_exporter flags from the policy' do
+    default_attributes['homelab_base']['node_exporter']['extra_args'] = ['--collector.systemd']
+
+    it 'appends them' do
+      is_expected.to render_file('/etc/default/prometheus-node-exporter').with_content('--collector.systemd"')
+    end
+  end
+
   it 'runs every node_exporter collector on a VM or bare metal' do
     is_expected.to render_file('/etc/default/prometheus-node-exporter')
       .with_content { |c| expect(c).not_to include('--no-collector') }

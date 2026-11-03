@@ -1,0 +1,42 @@
+---
+driver:
+  name: dokken
+  privileged: true
+  chef_version: '19'
+  # See homelab_loadbalancer: CI pulls through the Nexus Docker Hub proxy.
+  docker_registry: <%= ENV['DOKKEN_REGISTRY'] || '~' %>
+
+provisioner:
+  name: dokken
+  product_name: cinc
+  # The acceptance test: a second converge must update nothing.
+  enforce_idempotency: true
+  multiple_converge: 2
+
+transport:
+  name: dokken
+
+verifier:
+  name: inspec
+
+platforms:
+  - name: ubuntu-24.04
+    driver:
+      image: dokken/ubuntu-24.04
+      pid_one_command: /bin/systemd
+
+suites:
+  - name: default
+    attributes:
+      homelab_ayatori:
+        environment: dev
+        release: v0.3.0-rc.0
+        # A build with client-credentials (Ayatori ADR-0021); the manager itself cannot reach
+        # Bao or PostgreSQL from Kitchen and keeps restarting, which the suite does not check.
+        image: zot.lab.ddupan.top/panxiao81/ayatori-manager@sha256:72d86d2afa20ce0a92cf2953a5e97b742c3195e46c2011821128cd24eed3a909
+        postgresql_instance:
+          name: kitchen
+          host: pg.invalid
+          hostaddr: 127.0.0.1
+          port: 5432
+        postgresql_ca_source: file:///etc/ayatori-test/ca.pem

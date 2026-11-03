@@ -1,0 +1,220 @@
+# kube-state-metrics 自定义资源状态：Flux 对象沿用 homelab 的 gotk_resource_info 形状；ESO v2 不导出
+# 状态条件指标，ExternalSecret/SecretStore 以 ayatori_eso_resource_info 导出；Ayatori 资源导出
+# ayatori_resource_info（Ready 条件、原因与阶段）。
+kind: CustomResourceStateMetrics
+spec:
+  resources:
+    - groupVersionKind:
+        group: source.toolkit.fluxcd.io
+        version: v1
+        kind: GitRepository
+      metricNamePrefix: gotk
+      metrics:
+        - name: resource_info
+          help: The current state of a GitOps Toolkit resource.
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            suspended:
+              - spec
+              - suspend
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+    - groupVersionKind:
+        group: kustomize.toolkit.fluxcd.io
+        version: v1
+        kind: Kustomization
+      metricNamePrefix: gotk
+      metrics:
+        - name: resource_info
+          help: The current state of a GitOps Toolkit resource.
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            suspended:
+              - spec
+              - suspend
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+    - groupVersionKind:
+        group: external-secrets.io
+        version: v1
+        kind: ExternalSecret
+      metricNamePrefix: ayatori_eso
+      metrics:
+        - name: resource_info
+          help: ESO 对象的 Ready 状态（ESO 自身不导出状态条件指标）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+            reason:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - reason
+    - groupVersionKind:
+        group: external-secrets.io
+        version: v1
+        kind: SecretStore
+      metricNamePrefix: ayatori_eso
+      metrics:
+        - name: resource_info
+          help: ESO 对象的 Ready 状态（ESO 自身不导出状态条件指标）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+            reason:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - reason
+    - groupVersionKind:
+        group: database.ayatori.ddupan.top
+        version: v1alpha1
+        kind: PostgreSQLInstance
+      metricNamePrefix: ayatori
+      metrics:
+        - name: resource_info
+          help: Ayatori 资源的当前状态（Ready 条件与阶段）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+            reason:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - reason
+    - groupVersionKind:
+        group: database.ayatori.ddupan.top
+        version: v1alpha1
+        kind: PostgreSQLDatabase
+      metricNamePrefix: ayatori
+      metrics:
+        - name: resource_info
+          help: Ayatori 资源的当前状态（Ready 条件与阶段）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+            reason:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - reason
+            phase:
+              - status
+              - phase
+            resource_phase:
+              - status
+              - resourcePhase
+            credential_phase:
+              - status
+              - credentialPhase
+            reclaim_policy:
+              - spec
+              - reclaimPolicy
+    - groupVersionKind:
+        group: database.ayatori.ddupan.top
+        version: v1alpha1
+        kind: PostgreSQLTenant
+      metricNamePrefix: ayatori
+      metrics:
+        - name: resource_info
+          help: Ayatori 资源的当前状态（Ready 条件与阶段）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                name:
+                  - metadata
+                  - name
+          labelsFromPath:
+            resource_namespace:
+              - metadata
+              - namespace
+            ready:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - status
+            reason:
+              - status
+              - conditions
+              - '[type=Ready]'
+              - reason
+            phase:
+              - status
+              - phase

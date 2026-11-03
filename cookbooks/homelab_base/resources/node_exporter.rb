@@ -12,6 +12,7 @@ CONTAINER_DISABLED = %w(
 
 property :listen, String, default: ':9100'
 property :textfile_dir, String, default: '/var/lib/prometheus/node-exporter'
+property :extra_args, Array, default: []
 property :disabled_collectors, Array,
          default: lazy {
            virt = node['virtualization'] || {}
@@ -31,7 +32,8 @@ action :install do
 
   args = ["--web.listen-address=#{new_resource.listen}",
           "--collector.textfile.directory=#{new_resource.textfile_dir}"] +
-         new_resource.disabled_collectors.map { |c| "--no-collector.#{c}" }
+         new_resource.disabled_collectors.map { |c| "--no-collector.#{c}" } +
+         new_resource.extra_args
 
   file '/etc/default/prometheus-node-exporter' do
     content "# Managed by Cinc (homelab_base)\nARGS=\"#{args.join(' ')}\"\n"

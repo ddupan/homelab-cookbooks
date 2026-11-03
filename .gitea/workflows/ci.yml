@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cookbook: [homelab_base, homelab_loadbalancer]
+        cookbook: [homelab_base, homelab_loadbalancer, homelab_ayatori]
     env:
       # Pinned to a release tag; bump deliberately (it carries Cinc Client and Kitchen).
       WORKSTATION: cincproject/workstation:26.3.0
