@@ -39,9 +39,13 @@ suites:
         dataplaneapi:
           # openssl passwd -6 of the test-only password "test-only".
           password_hash: '$6$OwCXPAJAHLh1AF7B$mwRxAs9Adub3bP22hUC8M/1smiqyjK5zWRUnI5bQFtYmF0mcxKD3TdGU1fB7v/9LftuCdsCe3w6wnoRCJjEHb1'
+        # The fixture cookbook's stand-in release, not a real Ayatori one.
+        agent:
+          version: 0.0.0-test
+          url_base: file:///etc/lb-test/agent
         bgp:
           local_as: 65101
-          # No router in Kitchen: the session stays Active, which is all the suite checks.
+          # No router in Kitchen; the stand-in agent never connects.
           neighbors:
             127.0.0.2: 65000
           vip_pool: 10.62.0.0/24

@@ -1,4 +1,4 @@
-# Server certificate for dataplaneapi and gobgpd, from Bao pki/ over ACME (http-01)
+# Server certificate for dataplaneapi, from Bao pki/ over ACME (http-01)
 # with lego, like homelab_base's spire_node_cert. pki/ needs no EAB, so the first
 # converge issues it and a daily timer renews it; nothing on the node is secret.
 # OpenBao's ACME certificates carry serverAuth regardless of role flags, which is
@@ -44,11 +44,9 @@ action :install do
       set -eu
       install -m 0644 "$LEGO_HOOK_CERT_PATH" /etc/ayatori-lb/tls/server.crt
       install -m 0600 "$LEGO_HOOK_CERT_KEY_PATH" /etc/ayatori-lb/tls/server.key
-      # The first issue runs before either unit is installed, and try-restart exits 5
-      # for a unit that does not exist; restart only what is there.
-      for unit in dataplaneapi.service gobgpd.service; do
-        if systemctl cat "$unit" >/dev/null 2>&1; then systemctl try-restart "$unit"; fi
-      done
+      # The first issue runs before dataplaneapi is installed, and try-restart exits 5
+      # for a unit that does not exist; restart it only once it is there.
+      if systemctl cat dataplaneapi.service >/dev/null 2>&1; then systemctl try-restart dataplaneapi.service; fi
     SH
     mode '0755'
   end

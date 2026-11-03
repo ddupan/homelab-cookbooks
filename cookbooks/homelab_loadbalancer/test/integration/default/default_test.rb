@@ -4,9 +4,8 @@
 address = sys_info.ip_address.strip
 tls = '--cacert /etc/lb-test/server-ca.pem --cert /etc/lb-test/client.crt --key /etc/lb-test/client.key'
 api = "https://#{address}:5555/v3/services/haproxy"
-gobgp = "/usr/local/bin/gobgp -u #{address} --tls --tls-ca-file /etc/lb-test/server-ca.pem"
 
-%w(haproxy dataplaneapi gobgpd).each do |unit|
+%w(haproxy dataplaneapi ayatori-lb-agent).each do |unit|
   describe systemd_service(unit) do
     it { should be_enabled }
     it { should be_running }
@@ -132,31 +131,30 @@ describe directory('/var/lib/dataplaneapi') do
   its('owner') { should eq 'root' }
 end
 
-# gobgpd: only over mTLS on the node address, and only VIP-pool /32s get in.
+# The stand-in agent only stays up if, as its own user, it read the config, managed an
+# address on lo and talked to the HAProxy admin socket (fixture cookbook).
+describe file('/etc/ayatori/lb-agent.yaml') do
+  its('content') { should include '"routerID": "' + address + '"' }
+  its('content') { should include '"metricsAddress": "' + address + ':9641"' }
+  its('content') { should include '"vipPool": "10.62.0.0/24"' }
+end
+
+describe processes('sleep') do
+  its('users') { should include 'ayatori-lb-agent' }
+end
+
+# Not bound to HAProxy: the agent withdraws by itself and keeps reporting.
+describe command('systemctl stop haproxy && sleep 1 && systemctl is-active ayatori-lb-agent; systemctl start haproxy') do
+  its('stdout') { should eq "active\n" }
+end
+
+# gobgpd from 0.2.x is gone, and nothing listens for gRPC any more.
+describe file('/etc/systemd/system/gobgpd.service') do
+  it { should_not exist }
+end
+
 describe port(50051) do
-  it { should be_listening }
-  its('addresses') { should eq [address] }
-end
-
-describe command("#{gobgp} global") do
-  its('exit_status') { should_not eq 0 }
-end
-
-describe command("#{gobgp} --tls-client-cert-file /etc/lb-test/client.crt --tls-client-key-file /etc/lb-test/client.key " \
-                 'global rib add 10.62.0.9/32 -a ipv4 && ' \
-                 "#{gobgp} --tls-client-cert-file /etc/lb-test/client.crt --tls-client-key-file /etc/lb-test/client.key " \
-                 'global rib add 192.168.50.0/24 -a ipv4 && ' \
-                 "#{gobgp} --tls-client-cert-file /etc/lb-test/client.crt --tls-client-key-file /etc/lb-test/client.key " \
-                 'global rib -a ipv4') do
-  its('stdout') { should include '10.62.0.9/32' }
-  its('stdout') { should_not include '192.168.50.0/24' }
-end
-
-# BindsTo: stopping HAProxy takes the speaker (and so the routes) down; starting it
-# brings the speaker back.
-describe command('systemctl stop haproxy && sleep 1 && systemctl is-active gobgpd; ' \
-                 'systemctl start haproxy && sleep 2 && systemctl is-active gobgpd') do
-  its('stdout') { should eq "inactive\nactive\n" }
+  it { should_not be_listening }
 end
 
 # Anything still on the wildcard is unreachable through a VIP but not through the

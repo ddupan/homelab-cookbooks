@@ -1,12 +1,14 @@
 # Ayatori LoadBalancer host. Chef owns the node — packages, base HAProxy config,
-# systemd, BGP sessions and policy; Ayatori owns every lb_* section (through
-# dataplaneapi) and every VIP path (through gobgpd). Nothing on the node is secret:
+# systemd, the agent's BGP sessions; Ayatori owns every lb_* section (through
+# dataplaneapi), and the agent decides on this host which VIPs it announces
+# (ADR-0014). Nothing on the node is secret:
 # the server certificate is ACME-issued (renewed by its own timer), the client CA is public and the Basic
 # password is only a crypt hash.
 lb = node['homelab_loadbalancer']
 %w(environment).each do |key|
   raise "homelab_loadbalancer.#{key} must be set by the node policy" if lb[key].nil?
 end
+raise 'homelab_loadbalancer.agent.version must be set by the node policy' if lb['agent']['version'].nil?
 raise 'homelab_loadbalancer.environment must be dev or prod' unless %w(dev prod).include?(lb['environment'])
 
 address = node['ipaddress']
@@ -25,7 +27,6 @@ remote_file client_ca do
   retry_delay 10
   verify { |path| ::File.read(path).include?('-----BEGIN CERTIFICATE-----') }
   notifies :restart, 'service[dataplaneapi]'
-  notifies :restart, 'service[gobgpd]'
 end
 
 homelab_loadbalancer_server_cert 'default' do
@@ -48,21 +49,47 @@ homelab_loadbalancer_dataplaneapi 'default' do
   password_hash lb['dataplaneapi']['password_hash']
 end
 
-homelab_loadbalancer_gobgpd 'default' do
+homelab_loadbalancer_agent 'default' do
+  version lb['agent']['version']
+  url_base lb['agent']['url_base'] if lb['agent']['url_base']
   router_id address
   local_as lb['bgp']['local_as']
   neighbors lb['bgp']['neighbors'].to_h
   vip_pool lb['bgp']['vip_pool']
-  api_listen "#{address}:50051"
-  certificate certificate
-  key key
-  client_ca client_ca
+  metrics_address "#{address}:9641"
 end
 
-# Restart targets for the client CA above; the resources' own services live in their
-# nested run contexts, which recipe-level notifications cannot reach.
-%w(dataplaneapi gobgpd).each do |unit|
-  service unit do
-    action :nothing
+# gobgpd announced on Ayatori's behalf until 0.3.0. Left running beside the agent it
+# would be a second BGP speaker for the same router ID.
+service 'gobgpd' do
+  action [:stop, :disable]
+end
+
+%w(/etc/systemd/system/gobgpd.service /usr/local/bin/gobgpd /usr/local/bin/gobgp).each do |path|
+  file path do
+    action :delete
+    notifies :run, 'execute[systemctl daemon-reload]' if path.end_with?('.service')
   end
+end
+
+execute 'systemctl daemon-reload' do
+  action :nothing
+end
+
+directory '/etc/gobgpd' do
+  recursive true
+  action :delete
+end
+
+Dir.glob('/opt/gobgp-*').each do |path|
+  directory path do
+    recursive true
+    action :delete
+  end
+end
+
+# Restart target for the client CA above; the resource's own service lives in its
+# nested run context, which recipe-level notifications cannot reach.
+service 'dataplaneapi' do
+  action :nothing
 end
