@@ -28,6 +28,10 @@ platforms:
 suites:
   - name: default
     attributes:
+      # CI: the pod runner cannot reach ghcr.io or registry.k8s.io; pull every registry through
+      # the Nexus group (homelab-infra apps/nexus). Unset locally.
+      ayatori_test:
+        registry_mirror: <%= ENV['DOKKEN_REGISTRY'] %>
       homelab_ayatori:
         environment: dev
         release: v0.3.0-rc.0

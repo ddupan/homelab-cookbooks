@@ -30,3 +30,23 @@ file '/etc/containers/storage.conf' do
     graphroot = "/var/lib/containers/storage"
   TOML
 end
+
+# Pull through a mirror when Kitchen runs in CI. Images are pinned by digest, so the
+# mirror cannot hand out anything else.
+mirror = node.dig('ayatori_test', 'registry_mirror').to_s
+directory '/etc/containers/registries.conf.d' do
+  recursive true
+end
+
+file '/etc/containers/registries.conf.d/50-kitchen-mirror.conf' do
+  content(%w(docker.io ghcr.io registry.k8s.io).map do |registry|
+    <<~TOML
+      [[registry]]
+      prefix = "#{registry}"
+      location = "#{registry}"
+      [[registry.mirror]]
+      location = "#{mirror}"
+    TOML
+  end.join("\n"))
+  action mirror.empty? ? :delete : :create
+end
