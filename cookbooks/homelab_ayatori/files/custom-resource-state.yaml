@@ -218,3 +218,128 @@ spec:
             phase:
               - status
               - phase
+    # LoadBalancer 后端成员的健康检查结论（Ayatori ADR-0023）。status.endpoints 是平铺的一层列表：
+    # custom resource state 只展开一层列表。
+    - groupVersionKind:
+        group: network.ayatori.ddupan.top
+        version: v1alpha1
+        kind: LoadBalancer
+      metricNamePrefix: ayatori_loadbalancer
+      labelsFromPath:
+        resource_namespace:
+          - metadata
+          - namespace
+        name:
+          - metadata
+          - name
+      metrics:
+        - name: endpoint_status
+          help: 一个端口的一个成员在一台 LB 主机上的检查结论（值恒为 1，state 与 check_status 在标签中）。
+          each:
+            type: Info
+            info:
+              path:
+                - status
+                - endpoints
+              labelsFromPath:
+                port:
+                  - port
+                endpoint:
+                  - address
+                endpoint_port:
+                  - endpointPort
+                host:
+                  - host
+                state:
+                  - state
+                check_status:
+                  - checkStatus
+        - name: endpoint_check_code
+          help: HTTP 健康检查的返回码；L4 检查没有该序列。
+          each:
+            type: Gauge
+            gauge:
+              path:
+                - status
+                - endpoints
+              valueFrom:
+                - checkCode
+              labelsFromPath:
+                port:
+                  - port
+                endpoint:
+                  - address
+                endpoint_port:
+                  - endpointPort
+                host:
+                  - host
+        - name: endpoint_last_transition_timestamp_seconds
+          help: 成员在该主机上的 state 最近一次变化的时间。
+          each:
+            type: Gauge
+            gauge:
+              path:
+                - status
+                - endpoints
+              valueFrom:
+                - lastTransitionTime
+              labelsFromPath:
+                port:
+                  - port
+                endpoint:
+                  - address
+                endpoint_port:
+                  - endpointPort
+                host:
+                  - host
+        - name: port_ready_endpoints
+          help: 端口上至少在一台 LB 主机上 UP 的成员数。
+          each:
+            type: Gauge
+            gauge:
+              path:
+                - status
+                - ports
+              valueFrom:
+                - readyEndpoints
+              labelsFromPath:
+                port:
+                  - port
+        - name: port_endpoints
+          help: 端口引用的 Backend 中的成员数。
+          each:
+            type: Gauge
+            gauge:
+              path:
+                - status
+                - ports
+              valueFrom:
+                - endpoints
+              labelsFromPath:
+                port:
+                  - port
+        - name: resource_info
+          help: LoadBalancer 的当前状态（Programmed、EndpointsReady、Degraded 条件）。
+          each:
+            type: Info
+            info:
+              labelsFromPath:
+                address:
+                  - status
+                  - address
+          labelsFromPath:
+            programmed:
+              - status
+              - conditions
+              - '[type=Programmed]'
+              - status
+            endpoints_ready:
+              - status
+              - conditions
+              - '[type=EndpointsReady]'
+              - status
+            degraded:
+              - status
+              - conditions
+              - '[type=Degraded]'
+              - status

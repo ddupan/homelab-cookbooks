@@ -61,7 +61,8 @@ rules:
 - apiGroups: [apiextensions.k8s.io]
   resources: [customresourcedefinitions]
   verbs: [list, watch]
-- apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, external-secrets.io, database.ayatori.ddupan.top]
+- apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, external-secrets.io, database.ayatori.ddupan.top,
+              network.ayatori.ddupan.top]
   resources: ["*"]
   verbs: [list, watch]
 ---
