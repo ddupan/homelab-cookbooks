@@ -11,14 +11,21 @@ UNIT = '/etc/systemd/system/k0scontroller.service'.freeze
 INSTALL_ARGS = '/var/lib/ayatori-deploy/k0s-install-args'.freeze
 
 action :install do
-  # Restarts are immediate: everything after this resource talks to the API.
+  # Binary, config and unit changes restart k0s once, right after the last of them:
+  # everything after this resource talks to the API, and each restart drops it for a
+  # few seconds (ayatori-manager loses its leader lease).
+  ruby_block 'k0s restart needed' do
+    block { node.run_state['homelab_ayatori_k0s_restart'] = true }
+    action :nothing
+  end
+
   remote_file '/usr/local/bin/k0s' do
     source "https://github.com/k0sproject/k0s/releases/download/#{new_resource.version.sub('+', '%2B')}/k0s-#{new_resource.version}-amd64"
     checksum new_resource.sha256
     mode '0755'
     retries 3
     retry_delay 10
-    notifies :restart, 'service[k0scontroller]', :immediately
+    notifies :run, 'ruby_block[k0s restart needed]', :immediately
   end
 
   directory '/etc/k0s' do
@@ -28,7 +35,7 @@ action :install do
   file '/etc/k0s/k0s.yaml' do
     content new_resource.config
     mode '0600'
-    notifies :restart, 'service[k0scontroller]', :immediately
+    notifies :run, 'ruby_block[k0s restart needed]', :immediately
   end
 
   # The start arguments live in the generated unit, whose format k0s rewrites (it
@@ -43,7 +50,7 @@ action :install do
   execute 'k0s install controller' do
     command "/usr/local/bin/k0s install controller --force #{args}"
     not_if { ::File.exist?(UNIT) && ::File.exist?(INSTALL_ARGS) && ::File.read(INSTALL_ARGS) == args }
-    notifies :restart, 'service[k0scontroller]', :immediately
+    notifies :run, 'ruby_block[k0s restart needed]', :immediately
   end
 
   file INSTALL_ARGS do
@@ -53,6 +60,12 @@ action :install do
 
   service 'k0scontroller' do
     action [:enable, :start]
+  end
+
+  service 'restart k0scontroller' do
+    service_name 'k0scontroller'
+    action :restart
+    only_if { node.run_state.delete('homelab_ayatori_k0s_restart') }
   end
 
   # Only runs (and retries) while the API is not ready, so a healthy node reports no change.
