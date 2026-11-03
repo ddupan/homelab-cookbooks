@@ -45,13 +45,18 @@ describe 'homelab_ayatori::default' do
       'address_pool' => '10.62.1.0/24',
       'dns' => { 'url' => 'http://192.168.10.127:8053', 'zone' => 'dev-lb.lab.ddupan.top' },
     }
+    default_attributes['homelab_ayatori']['gitops'] = {
+      'url' => 'https://git.ddupan.top/panxiao81/homelab-infra.git', 'path' => './clusters/ayatori-dev'
+    }
 
-    it 'passes the pool and the DNS zone to the manager and syncs the LB credentials' do
+    it 'passes the pool and the DNS zone to the manager, syncs the LB credentials and lets gitops declare LBs' do
       is_expected.to render_file('/etc/containers/systemd/ayatori-manager.container')
         .with_content('--loadbalancer-address-pool=10.62.1.0/24')
         .with_content('--loadbalancer-dns-zone=dev-lb.lab.ddupan.top')
       is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('POWERDNS_API_KEY_PATH: "k8s/powerdns"')
       is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('path: ./deploy/flux/loadbalancer')
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml')
+        .with_content('resources: [loadbalancerhosts, loadbalancers, backends]')
     end
   end
 
