@@ -70,10 +70,11 @@ action :install do
           user haproxy
           group haproxy
           stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
-          # The LB agent's own socket: read-only (show stat), group haproxy so its user can
-          # connect. Not admin.sock: the package's haproxy.cfg binds that path again
-          # without a group, and the later bind wins.
-          stats socket /run/haproxy/agent.sock mode 660 group haproxy level user
+          # The LB agent's own socket, group haproxy so its user can connect. Not
+          # admin.sock: the package's haproxy.cfg binds that path again without a group,
+          # and the later bind wins. Level operator, not user: at level user show stat
+          # blanks the addr column, so the agent sees no bind address and announces no VIP.
+          stats socket /run/haproxy/agent.sock mode 660 group haproxy level operator
           # Saved by ExecReload; without it every reload starts each server in its
           # init-state (fully-down) and the whole host drops traffic for rise x inter.
           server-state-file /var/lib/haproxy/server-state

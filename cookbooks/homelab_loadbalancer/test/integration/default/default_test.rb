@@ -143,6 +143,12 @@ describe processes('sleep') do
   its('users') { should include 'ayatori-lb-agent' }
 end
 
+# The agent reads each VIP from show stat's addr column, which HAProxy only fills in
+# from level operator up; at level user every listener reads as unbound.
+describe command("echo 'show cli level' | runuser -u ayatori-lb-agent -- socat - /run/haproxy/agent.sock") do
+  its('stdout') { should match(/\Aoperator$/) }
+end
+
 # Not bound to HAProxy: the agent withdraws by itself and keeps reporting.
 describe command('systemctl stop haproxy && sleep 1 && systemctl is-active ayatori-lb-agent; systemctl start haproxy') do
   its('stdout') { should eq "active\n" }

@@ -29,7 +29,7 @@ action :install do
     notifies :restart, 'service[ayatori-lb-agent]'
   end
 
-  # Group haproxy: the read-only agent.sock in base.cfg is 0660 root:haproxy. Nothing
+  # Group haproxy: agent.sock (level operator) in base.cfg is 0660 root:haproxy. Nothing
   # else on the host is readable or writable to it.
   user 'ayatori-lb-agent' do
     system true
