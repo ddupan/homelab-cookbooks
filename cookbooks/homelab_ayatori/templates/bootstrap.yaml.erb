@@ -191,8 +191,9 @@ rules:
   verbs: [get, list, watch, create, update, patch, delete]
 <% if @loadbalancer -%>
 # LB 主机由部署方仓库声明（ADR-0018），不再由部署工具写入。
+# LoadBalancer 与 Backend 同样可由部署方仓库声明（如 homelab 的 clusters/ayatori-prod）。
 - apiGroups: [network.ayatori.ddupan.top]
-  resources: [loadbalancerhosts]
+  resources: [loadbalancerhosts, loadbalancers, backends]
   verbs: [get, list, watch, create, update, patch, delete]
 <% end -%>
 ---
