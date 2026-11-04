@@ -44,6 +44,10 @@ action :install do
   # show up as drift on every converge. Chef owns this source; ExecStartPre copies it
   # to the runtime copy the daemon is allowed to rewrite.
   local_password_file = new_resource.local_password_file
+  # The agent resource creates the file earlier in the same run. A why-run creates
+  # nothing, so on the run that enables it the file is not there yet: render a
+  # placeholder rather than failing (the real run never sees it).
+  local_password = -> { ::File.exist?(local_password_file) ? ::File.read(local_password_file).strip : '(created on apply)' }
   file '/etc/dataplaneapi/dataplaneapi.yml' do
     # Lazy: the local password file is created on this run, before this resource.
     content(lazy { <<~YAML })
@@ -62,7 +66,7 @@ action :install do
           - name: #{new_resource.username}
             password: '#{new_resource.password_hash}'
             insecure: false
-      #{local_password_file ? "    - name: #{new_resource.local_user}\n      password: '#{::File.read(local_password_file).strip}'\n      insecure: true\n" : ''}  transaction:
+      #{local_password_file ? "    - name: #{new_resource.local_user}\n      password: '#{local_password.call}'\n      insecure: true\n" : ''}  transaction:
           transaction_dir: /var/lib/dataplaneapi/transactions
           backups_dir: /var/lib/dataplaneapi/backups
         resources:

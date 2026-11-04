@@ -106,6 +106,8 @@ describe 'homelab_loadbalancer::default' do
 
   context 'when the environment joins and converges on the host (ADR-0022)' do
     before do
+      allow(::File).to receive(:exist?).and_call_original
+      allow(::File).to receive(:exist?).with('/etc/ayatori/lb-agent-dataplane.password').and_return(true)
       allow(::File).to receive(:read).and_call_original
       allow(::File).to receive(:read).with('/etc/ayatori/lb-agent-dataplane.password').and_return("s3cret\n")
     end
@@ -130,6 +132,18 @@ describe 'homelab_loadbalancer::default' do
     it 'generates the local password once, readable by the agent only' do
       expect(chef_run).to create_file_if_missing('/etc/ayatori/lb-agent-dataplane.password')
         .with(owner: 'ayatori-lb-agent', mode: '0400', sensitive: true)
+    end
+
+    # A why-run creates nothing: the run that turns converge on must still render.
+    it 'renders before the password file exists, as in the first why-run' do
+      allow(::File).to receive(:exist?).with('/etc/ayatori/lb-agent-dataplane.password').and_return(false)
+      is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content("password: '(created on apply)'")
+    end
+
+    it 'creates the password file in the agent resource, before the config that names it' do
+      names = chef_run.resource_collection.all_resources.map(&:to_s)
+      expect(names.index('file[/etc/ayatori/lb-agent-dataplane.password]'))
+        .to be < names.index('file[/etc/ayatori/lb-agent.yaml]')
     end
 
     it 'adds a loopback listener and the agent user, keeping the remote mTLS one' do

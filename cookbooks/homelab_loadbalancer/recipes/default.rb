@@ -50,7 +50,7 @@ converge = lb['agent']['converge']
 local_port = 5556
 local_password = '/etc/ayatori/lb-agent-dataplane.password'
 
-# Before dataplaneapi: it creates the user that owns the local password file.
+# Before dataplaneapi: it creates the agent user and the local password file it owns.
 homelab_loadbalancer_agent 'default' do
   version lb['agent']['version']
   url_base lb['agent']['url_base'] if lb['agent']['url_base']
@@ -62,17 +62,6 @@ homelab_loadbalancer_agent 'default' do
   join lb['agent']['join']
   if converge
     data_plane('url' => "http://127.0.0.1:#{local_port}", 'username' => 'lb-agent', 'passwordFile' => local_password)
-  end
-end
-
-if converge
-  file local_password do
-    content lazy { SecureRandom.alphanumeric(32) }
-    owner 'ayatori-lb-agent'
-    mode '0400'
-    sensitive true
-    action :create_if_missing
-    notifies :restart, 'service[dataplaneapi]'
   end
 end
 

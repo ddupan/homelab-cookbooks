@@ -1,3 +1,5 @@
+require 'securerandom'
+
 # Ayatori LB agent (ADR-0014/0015): decides on this host alone whether each VIP is
 # announced — the VIP is local, HAProxy serves it, a session is up — and speaks BGP
 # itself (embedded GoBGP, outbound sessions only). Read-only /status and /metrics on
@@ -57,6 +59,18 @@ action :install do
   end
 
   directory '/etc/ayatori'
+
+  # Generated once, readable by the agent only, before the agent's config refers to it:
+  # the agent reads it when it starts converging. dataplaneapi reads it after this.
+  if new_resource.data_plane
+    file new_resource.data_plane['passwordFile'] do
+      content lazy { SecureRandom.alphanumeric(32) }
+      owner 'ayatori-lb-agent'
+      mode '0400'
+      sensitive true
+      action :create_if_missing
+    end
+  end
 
   # Owned by the agent: it writes its key and certificate here. Created empty; the
   # deployer writes bootstrap-kubeconfig on join.
