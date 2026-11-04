@@ -106,6 +106,7 @@ template "#{state}/bootstrap.yaml" do
     openbao_address: ay['openbao_address'],
     postgresql: ay['postgresql_instance'].to_h,
     loadbalancer: !loadbalancer.nil?,
+    node_agents: ay['node_agents'],
     dns_api_key: ay['loadbalancer']['dns_api_key'].to_h,
     gitops: gitops
   )
@@ -192,6 +193,10 @@ end
 
 # --- control plane containers ---------------------------------------------------------
 
+# Agents that converge must be able to join first.
+if ay['loadbalancer']['agent_convergence'] && !ay['node_agents']
+  raise 'homelab_ayatori.loadbalancer.agent_convergence needs homelab_ayatori.node_agents'
+end
 dns = ay['loadbalancer']['dns'].to_h
 unless dns.empty? || (dns['url'].to_s.match?(%r{\Ahttps?://}) && dns['zone'].to_s.match?(/\A[a-z0-9.-]+[a-z0-9]\z/))
   raise 'homelab_ayatori.loadbalancer.dns must be {url: http(s)://..., zone: <dns name>}'
@@ -199,7 +204,8 @@ end
 lb_args = if loadbalancer
             ["--loadbalancer-address-pool=#{loadbalancer}",
              "--loadbalancer-credentials=#{namespace}/loadbalancer-credentials"] +
-              (dns.empty? ? [] : ["--loadbalancer-dns-url=#{dns['url']}", "--loadbalancer-dns-zone=#{dns['zone']}"])
+              (dns.empty? ? [] : ["--loadbalancer-dns-url=#{dns['url']}", "--loadbalancer-dns-zone=#{dns['zone']}"]) +
+              (ay['loadbalancer']['agent_convergence'] ? ['--loadbalancer-agent-convergence'] : [])
           else
             []
           end

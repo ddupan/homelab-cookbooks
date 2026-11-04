@@ -17,6 +17,13 @@ ay['loadbalancer']['dns'] = {}
 # The PowerDNS API key in Bao KV, read in place by ESO. Read even without dns: the
 # credentials Secret is one object and ESO cannot leave a field out conditionally.
 ay['loadbalancer']['dns_api_key'] = { 'path' => 'k8s/powerdns', 'property' => 'api_key' }
+# Ayatori ADR-0021/0022: node agents (compute, loadbalancer) join this control plane —
+# Flux syncs deploy/flux/nodes, their Node and Lease permissions. Needs a release that
+# has it. First certificates: homelab-infra infrastructure/chef/ansible/join.yml.
+ay['node_agents'] = false
+# ADR-0022: LB hosts converge HAProxy themselves and the manager only aggregates their
+# reports. Switched per environment together with the LB policy's agent.converge.
+ay['loadbalancer']['agent_convergence'] = false
 
 # Site endpoints: defaults the node policy may override.
 ay['openbao_address'] = 'https://bao.lab.ddupan.top:8200'
