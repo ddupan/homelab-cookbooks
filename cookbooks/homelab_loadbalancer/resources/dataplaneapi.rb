@@ -12,6 +12,12 @@ property :certificate, String, required: true
 property :key, String, required: true
 property :client_ca, String, required: true
 property :username, String, default: 'ayatori'
+# Ayatori ADR-0022: the host's own agent converges HAProxy through a second listener,
+# plain HTTP on loopback only, as its own user. The password is generated on this host
+# and never leaves it; the file is readable by the agent alone.
+property :local_port, Integer, default: 5556
+property :local_user, String, default: 'lb-agent'
+property :local_password_file, [String, nil]
 property :password_hash, String, required: true,
                                  callbacks: { 'must be a SHA-512 crypt hash, never a plaintext password' => lambda { |v|
                                    v.start_with?('$6$')
@@ -37,14 +43,16 @@ action :install do
   # dataplaneapi normalises and rewrites the file it was started with, which would
   # show up as drift on every converge. Chef owns this source; ExecStartPre copies it
   # to the runtime copy the daemon is allowed to rewrite.
+  local_password_file = new_resource.local_password_file
   file '/etc/dataplaneapi/dataplaneapi.yml' do
-    content <<~YAML
+    # Lazy: the local password file is created on this run, before this resource.
+    content(lazy { <<~YAML })
       # Managed by Cinc (homelab_loadbalancer)
       config_version: 2
       name: #{node['hostname']}
       dataplaneapi:
-        scheme: [https]
-        tls:
+        scheme: [#{local_password_file ? 'http, https' : 'https'}]
+      #{local_password_file ? "  host: 127.0.0.1\n  port: #{new_resource.local_port}\n" : ''}  tls:
           tls_host: #{new_resource.listen}
           tls_port: #{new_resource.port}
           tls_certificate: #{new_resource.certificate}
@@ -54,7 +62,7 @@ action :install do
           - name: #{new_resource.username}
             password: '#{new_resource.password_hash}'
             insecure: false
-        transaction:
+      #{local_password_file ? "    - name: #{new_resource.local_user}\n      password: '#{::File.read(local_password_file).strip}'\n      insecure: true\n" : ''}  transaction:
           transaction_dir: /var/lib/dataplaneapi/transactions
           backups_dir: /var/lib/dataplaneapi/backups
         resources:
@@ -82,6 +90,7 @@ action :install do
             - /etc/haproxy/base.cfg
     YAML
     mode '0600'
+    sensitive true if local_password_file
     notifies :restart, 'service[dataplaneapi]'
   end
 

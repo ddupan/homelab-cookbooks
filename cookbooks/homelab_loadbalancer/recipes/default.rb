@@ -3,7 +3,10 @@
 # dataplaneapi), and the agent decides on this host which VIPs it announces
 # (ADR-0014). Nothing on the node is secret:
 # the server certificate is ACME-issued (renewed by its own timer), the client CA is public and the Basic
-# password is only a crypt hash.
+# password is only a crypt hash. With agent.converge (ADR-0022) one secret is generated
+# here: the loopback Data Plane API password of the host's own agent.
+require 'securerandom'
+
 lb = node['homelab_loadbalancer']
 %w(environment).each do |key|
   raise "homelab_loadbalancer.#{key} must be set by the node policy" if lb[key].nil?
@@ -41,14 +44,13 @@ homelab_loadbalancer_haproxy 'default' do
   resolver lb['resolver']
 end
 
-homelab_loadbalancer_dataplaneapi 'default' do
-  listen address
-  certificate certificate
-  key key
-  client_ca client_ca
-  password_hash lb['dataplaneapi']['password_hash']
-end
+# Ayatori ADR-0022: with converge the agent writes through a loopback listener, as
+# its own user, with a password generated here that never leaves the host.
+converge = lb['agent']['converge']
+local_port = 5556
+local_password = '/etc/ayatori/lb-agent-dataplane.password'
 
+# Before dataplaneapi: it creates the user that owns the local password file.
 homelab_loadbalancer_agent 'default' do
   version lb['agent']['version']
   url_base lb['agent']['url_base'] if lb['agent']['url_base']
@@ -57,6 +59,31 @@ homelab_loadbalancer_agent 'default' do
   neighbors lb['bgp']['neighbors'].to_h
   vip_pool lb['bgp']['vip_pool']
   metrics_address "#{address}:9641"
+  join lb['agent']['join']
+  if converge
+    data_plane('url' => "http://127.0.0.1:#{local_port}", 'username' => 'lb-agent', 'passwordFile' => local_password)
+  end
+end
+
+if converge
+  file local_password do
+    content lazy { SecureRandom.alphanumeric(32) }
+    owner 'ayatori-lb-agent'
+    mode '0400'
+    sensitive true
+    action :create_if_missing
+    notifies :restart, 'service[dataplaneapi]'
+  end
+end
+
+homelab_loadbalancer_dataplaneapi 'default' do
+  listen address
+  certificate certificate
+  key key
+  client_ca client_ca
+  password_hash lb['dataplaneapi']['password_hash']
+  local_port local_port
+  local_password_file local_password if converge
 end
 
 # gobgpd announced on Ayatori's behalf until 0.3.0. Left running beside the agent it
