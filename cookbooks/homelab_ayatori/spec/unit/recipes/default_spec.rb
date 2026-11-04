@@ -24,6 +24,10 @@ describe 'homelab_ayatori::default' do
       .with_content('address: 10.0.0.11')
   end
 
+  it 'lets kube-state-metrics read LoadBalancer status for the endpoint health metrics' do
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('network.ayatori.ddupan.top]')
+  end
+
   it 'manages every identity through client-credentials, as root with file capabilities only' do
     is_expected.to render_file('/etc/containers/systemd/client-credentials.container').with_content { |c|
       expect(c).to include('PodmanArgs=--entrypoint=/client-credentials', 'User=0',

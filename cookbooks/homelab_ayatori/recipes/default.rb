@@ -149,7 +149,9 @@ homelab_ayatori_container 'client-credentials' do
   capabilities %w(CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER)
   volumes ["#{identities_dir}:/identities"]
   exec(identities.keys.map { |i| "--identity=#{i}=/identities/#{i}" })
-  memory '64M'
+  # MemoryMax covers the whole unit cgroup, `podman run` and conmon included, not just the
+  # binary: at 64M it sat at the limit and starts were intermittently killed by a signal.
+  memory '256M'
   # A new bootstrap token restarts it: a certificate manager already waiting on a CSR
   # made with the old token would not ask again, and the deployer only approves CSRs
   # made with the token it just created.
