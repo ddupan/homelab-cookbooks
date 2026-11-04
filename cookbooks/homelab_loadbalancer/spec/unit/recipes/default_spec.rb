@@ -93,6 +93,54 @@ describe 'homelab_loadbalancer::default' do
     expect(unit).not_to include('BindsTo=')
   end
 
+  # Without join the agent, its unit and dataplaneapi stay exactly as before, so turning
+  # nothing on restarts nothing.
+  it 'adds no join or local listener while the environment has not switched' do
+    expect(chef_run.systemd_unit('ayatori-lb-agent.service').content).not_to include('ReadWritePaths')
+    expect(chef_run).not_to create_directory('/etc/ayatori/lb-agent')
+    is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content { |config|
+      expect(config).to include("scheme: [https]\n  tls:\n").and include("insecure: false\n  transaction:\n")
+      expect(config).not_to include('lb-agent')
+    }
+  end
+
+  context 'when the environment joins and converges on the host (ADR-0022)' do
+    before do
+      allow(::File).to receive(:read).and_call_original
+      allow(::File).to receive(:read).with('/etc/ayatori/lb-agent-dataplane.password').and_return("s3cret\n")
+    end
+
+    default_attributes['homelab_loadbalancer']['agent'] = { 'version' => '0.3.0', 'join' => true, 'converge' => true }
+
+    it 'joins as the node and converges through the loopback listener' do
+      config = JSON.parse(chef_run.file('/etc/ayatori/lb-agent.yaml').content)
+      expect(config).to include(
+        'nodeName' => 'lb1', 'credentialsDir' => '/etc/ayatori/lb-agent',
+        'dataPlane' => { 'url' => 'http://127.0.0.1:5556', 'username' => 'lb-agent',
+                         'passwordFile' => '/etc/ayatori/lb-agent-dataplane.password' }
+      )
+    end
+
+    it 'gives the agent its credentials directory and nothing else writable' do
+      expect(chef_run).to create_directory('/etc/ayatori/lb-agent').with(owner: 'ayatori-lb-agent', mode: '0700')
+      expect(chef_run.systemd_unit('ayatori-lb-agent.service').content)
+        .to include("PrivateTmp=yes\nReadWritePaths=/etc/ayatori/lb-agent\nExecStart=")
+    end
+
+    it 'generates the local password once, readable by the agent only' do
+      expect(chef_run).to create_file_if_missing('/etc/ayatori/lb-agent-dataplane.password')
+        .with(owner: 'ayatori-lb-agent', mode: '0400', sensitive: true)
+    end
+
+    it 'adds a loopback listener and the agent user, keeping the remote mTLS one' do
+      is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content { |config|
+        expect(config).to include("scheme: [http, https]\n  host: 127.0.0.1\n  port: 5556\n  tls:\n")
+        expect(config).to include("- name: lb-agent\n      password: 's3cret'\n      insecure: true\n  transaction:")
+        expect(config).to include('tls_ca: /etc/ayatori-lb/client-ca.pem')
+      }
+    end
+  end
+
   it 'removes the gobgpd speaker it replaces' do
     expect(chef_run).to delete_file('/etc/systemd/system/gobgpd.service')
     expect(chef_run).to delete_directory('/etc/gobgpd')

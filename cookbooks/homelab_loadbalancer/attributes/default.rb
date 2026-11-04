@@ -16,6 +16,12 @@ default['homelab_loadbalancer']['bgp']['vip_pool'] = nil # only /32s from it are
 default['homelab_loadbalancer']['agent']['version'] = nil
 # Defaults to that release's download URL; Kitchen points it at a fixture directory.
 default['homelab_loadbalancer']['agent']['url_base'] = nil
+# Ayatori ADR-0022, per environment, both off until the environment switches:
+# join — the agent joins the control plane (first certificate: homelab-infra join.yml);
+# converge — it converges HAProxy here through the loopback Data Plane API, and the
+# environment's manager runs with --loadbalancer-agent-convergence. Needs join.
+default['homelab_loadbalancer']['agent']['join'] = false
+default['homelab_loadbalancer']['agent']['converge'] = false
 # Defaults to the environment's root in Bao; Kitchen points it at a fixture file.
 default['homelab_loadbalancer']['client_ca_source'] = nil
 # VIPs are local addresses on this host: any wildcard listener would answer on every
