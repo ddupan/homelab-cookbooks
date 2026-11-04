@@ -95,10 +95,12 @@ jobs:
       # and runs the InSpec suite. --network host: the workstation container must
       # reach the dokken bridge, which a default-bridge container cannot.
       # All of cookbooks/ is mounted: a Policyfile may take a sibling by path.
+      # test/unit holds Python tests for scripts a cookbook ships (homelab_data's collector).
       - name: Lint, unit, integration
         run: |
           docker run --rm --network host \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -e DOKKEN_REGISTRY \
             -v "$PWD/cookbooks:/cookbooks" -w "/cookbooks/${{ matrix.cookbook }}" "$WORKSTATION" \
-            bash -lc 'cookstyle . && cinc install && cinc exec rspec && kitchen test --destroy=always'
+            bash -lc 'cookstyle . && { [ ! -d test/unit ] || python3 -m unittest discover -s test/unit; } &&
+                      cinc install && cinc exec rspec && kitchen test --destroy=always'

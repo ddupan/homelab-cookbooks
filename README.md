@@ -46,3 +46,4 @@ Docker Hub 对匿名拉取按出口 IP 限流，lab 共用一个出口。被限�
 | `homelab_base` | 内部 CA 信任、OpenBao SSH user CA 信任、node_exporter（容器内关闭宿主硬件类 collector）、漂移检查 timer 与运行报告、SPIRE agent（x509pop，lego ACME 节点证书） |
 | `homelab_loadbalancer` | Ayatori LoadBalancer 主机：服务端证书（lego，Bao `pki/` ACME，节点地址 http-01）、HAProxy 3.4（Chef 只管 `base.cfg`，`haproxy.cfg` 归 dataplaneapi）、Data Plane API（仅 mTLS）、Ayatori LB agent（Ayatori release 附件，本机判断并宣告 VIP；专用用户，仅 `CAP_NET_ADMIN` 与 HAProxy socket；0.3.0 起取代并清除 gobgpd） |
 | `homelab_ayatori` | Ayatori API-only 控制面：k0s controller-only（只开 namespace 与客户端证书签发相关控制器）、Flux/ESO/kube-state-metrics/ayatori-manager 的 podman quadlet、客户端证书（bootstrap token 首次签发并核对批准，client-credentials 自行续签，Ayatori ADR-0021）、k0s 备份与证书到期指标；`adopt` recipe 接管原 Ansible 部署的节点 |
+| `homelab_data` | 共享数据服务节点（etcd-pve1/2）：维护指标（etcd 快照、证书到期、pgBackRest full 备份），发行版 node_exporter 第二实例只读 textfile、监听节点地址 :9109；`collect.py` 是唯一来源，laptop 的 Ansible play 按 tag 下载它 |

@@ -1,3 +1,4 @@
 Policyfile.lock.json
 .kitchen/
 *.log
+__pycache__/
