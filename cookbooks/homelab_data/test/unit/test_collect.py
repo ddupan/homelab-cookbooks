@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -70,6 +71,23 @@ class CollectorTests(unittest.TestCase):
             p = Path(d, 'chain')
             p.write_text(Path(d, '30').read_text() + Path(d, '2').read_text())
             self.assertEqual(collector.certificate_expiry(p), collector.certificate_expiry(Path(d, '2')))
+
+
+    def test_restart_pending_compares_file_change_with_process_start(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d, 'etcd.yml')
+            path.touch()
+            os.utime(path, (2000, 2000), follow_symlinks=False)
+            show = 'ActiveState=active\nExecMainStartTimestamp=Thu 1970-01-01 00:16:40 UTC'
+            config = {'certificates': [], 'snapshot_dir': d,
+                      'restart_units': [{'unit': 'homelab-etcd', 'paths': [str(path)]}]}
+            with patch.object(collector, 'command', side_effect=lambda argv: show if argv[0] == 'systemctl' else '1000'):
+                self.assertIn('homelab_data_restart_pending{unit="homelab-etcd"} 1.0', collector.collect(config))
+            with patch.object(collector, 'command', side_effect=lambda argv: show if argv[0] == 'systemctl' else '3000'):
+                self.assertIn('homelab_data_restart_pending{unit="homelab-etcd"} 0.0', collector.collect(config))
+            stopped = 'ActiveState=inactive\nExecMainStartTimestamp='
+            with patch.object(collector, 'command', return_value=stopped):
+                self.assertIn('check_success{check="restart_pending",unit="homelab-etcd"} 0.0', collector.collect(config))
 
 
 if __name__ == '__main__':

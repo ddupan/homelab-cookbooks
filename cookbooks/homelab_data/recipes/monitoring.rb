@@ -40,7 +40,15 @@ file config do
     'dev' => false,
     'repository' => data['pgbackrest_repository'],
     'renewal_units' => [],
-    'certificates' => certificates
+    'certificates' => certificates,
+    # homelab_data::etcd never restarts etcd; this is how a pending restart shows.
+    'restart_units' => if data['etcd']['members'].to_h.key?(node['hostname'])
+                         [{ 'unit' => 'homelab-etcd',
+                            'paths' => %w(/etc/homelab-etcd/etcd.yml /etc/systemd/system/homelab-etcd.service
+                                          /opt/homelab-etcd/etcd) }]
+                       else
+                         []
+                       end
   ) + "\n"
   mode '0644'
 end

@@ -94,7 +94,9 @@ action :install do
             - /etc/haproxy/base.cfg
     YAML
     mode '0600'
-    sensitive true if local_password_file
+    # Always: the diff shows the OLD content too, so dropping the local user printed its
+    # live password into a PR's why-run comment (2026-11-04). The admin hash is here as well.
+    sensitive true
     notifies :restart, 'service[dataplaneapi]'
   end
 
