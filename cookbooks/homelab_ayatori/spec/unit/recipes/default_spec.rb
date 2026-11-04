@@ -64,6 +64,29 @@ describe 'homelab_ayatori::default' do
     end
   end
 
+  it 'leaves node agents and agent convergence off until the environment switches' do
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+      expect(c).not_to include('deploy/flux/nodes')
+    }
+  end
+
+  context 'when the LB hosts converge themselves (ADR-0022)' do
+    default_attributes['homelab_ayatori']['node_agents'] = true
+    default_attributes['homelab_ayatori']['loadbalancer'] = { 'address_pool' => '10.62.1.0/24', 'agent_convergence' => true }
+
+    it 'syncs the node agent permissions and lets the manager only aggregate' do
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('path: ./deploy/flux/nodes')
+      is_expected.to render_file('/etc/containers/systemd/ayatori-manager.container')
+        .with_content('--loadbalancer-agent-convergence')
+    end
+  end
+
+  context 'with agent convergence but no node agents' do
+    default_attributes['homelab_ayatori']['loadbalancer'] = { 'address_pool' => '10.62.1.0/24', 'agent_convergence' => true }
+
+    it('fails') { expect { chef_run }.to raise_error(RuntimeError, /needs homelab_ayatori.node_agents/) }
+  end
+
   context 'with an image pinned only by tag' do
     default_attributes['homelab_ayatori']['image'] = 'zot.lab.ddupan.top/panxiao81/ayatori-manager:v0.3.0'
 

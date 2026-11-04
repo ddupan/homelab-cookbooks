@@ -143,6 +143,24 @@ spec:
       POSTGRESQL_HOST: <%= @postgresql['host'].to_json %>
       POSTGRESQL_HOSTADDR: <%= @postgresql['hostaddr'].to_json %>
       POSTGRESQL_PORT: "<%= @postgresql['port'] %>"
+<% if @node_agents -%>
+---
+# 节点 agent（compute、LB）的 Node 与 Lease 权限和准入策略（ADR-0021/0022），各角色共用。
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ayatori-nodes
+  namespace: flux-system
+spec:
+  interval: 10m
+  dependsOn:
+  - name: ayatori-control-plane
+  sourceRef:
+    kind: GitRepository
+    name: ayatori
+  path: ./deploy/flux/nodes
+  prune: true
+<% end -%>
 <% if @loadbalancer -%>
 ---
 # LB 凭据 Secret；manager 启动时读取，同步前 manager 启动失败并由 quadlet 重试。
