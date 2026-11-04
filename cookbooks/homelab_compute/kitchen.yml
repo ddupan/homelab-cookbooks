@@ -1,0 +1,39 @@
+---
+driver:
+  name: dokken
+  privileged: true
+  chef_version: '19'
+  # CI pulls every image (platform, Cinc, data) through the Nexus Docker Hub proxy:
+  # anonymous Docker Hub pulls are rate-limited per egress IP and the lab shares one.
+  # Unset locally, so a workstation pulls from Docker Hub directly.
+  docker_registry: <%= ENV['DOKKEN_REGISTRY'] || '~' %>
+
+provisioner:
+  name: dokken
+  product_name: cinc
+  # The acceptance test: a second converge must update nothing.
+  enforce_idempotency: true
+  multiple_converge: 2
+
+transport:
+  name: dokken
+
+verifier:
+  name: inspec
+
+platforms:
+  - name: debian-13
+    driver:
+      image: dokken/debian-13
+      pid_one_command: /lib/systemd/systemd
+
+suites:
+  - name: default
+    attributes:
+      homelab_compute:
+        # The fixture cookbook's stand-in release, not a real Ayatori one.
+        agent:
+          version: 0.0.0-test
+          url_base: file:///etc/compute-test/agent
+        node_labels:
+          topology.kubernetes.io/zone: test
