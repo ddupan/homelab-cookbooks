@@ -94,6 +94,20 @@ def collect(config):
                 raise ValueError('renewal timer inactive')
             return int(timestamp)
         check('renewal_success_timestamp_seconds', renewal, unit=unit)
+    for item in config.get('restart_units', []):
+        # 1 = a file the unit runs from changed after the running process started. For
+        # services nothing restarts automatically (etcd: a restart is a quorum decision).
+        def pending(i=item):
+            props = dict(line.split('=', 1) for line in command([
+                'systemctl', 'show', i['unit'] + '.service', '-p', 'ActiveState',
+                '-p', 'ExecMainStartTimestamp']).splitlines())
+            if props.get('ActiveState') != 'active':
+                raise ValueError('unit not running')
+            started = int(command(['date', '-d', props['ExecMainStartTimestamp'], '+%s']))
+            # lstat: a version upgrade swaps a symlink; the new binary keeps the tarball's
+            # old mtime, the link itself does not.
+            return int(max(os.lstat(path).st_mtime for path in i['paths']) > started)
+        check('restart_pending', pending, unit=item['unit'])
     emit('collection_timestamp_seconds', time.time())
     return '\n'.join(lines) + '\n'
 

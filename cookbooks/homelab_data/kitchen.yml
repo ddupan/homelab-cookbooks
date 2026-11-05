@@ -29,3 +29,10 @@ platforms:
 
 suites:
   - name: default
+    attributes:
+      homelab_data:
+        etcd:
+          # kitchen-dokken's hostname. A lone member that never starts: no data dir
+          # and no join marker, which is exactly the state before `member add`.
+          members:
+            dokken: 127.0.0.1

@@ -28,6 +28,9 @@ end
 unless Chef::Config[:why_run]
   apt_update 'daily' do
     frequency 86_400
+    # The WAN drops at random; a fresh etcd-pve3 failed its first converge on this.
+    retries 3
+    retry_delay 10
     action :periodic
   end
 end

@@ -1,0 +1,110 @@
+#!/usr/bin/python3
+"""Issue or renew this etcd member's certificates through Bao, using the node's SPIFFE ID.
+
+Replaces the laptop controller that ran site.yml for every member. Keys never leave the
+node; only CSRs go to Bao. etcd reloads certificates on each new connection, so nothing
+is restarted. Bao is logged into only when some certificate actually needs signing.
+"""
+import argparse
+import grp
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import urllib.request
+
+SPIRE_SOCKET = '/run/spire/agent-sockets/spire-agent.sock'
+
+
+def certificates(name, address):
+    # (file, Bao role, CN, SANs, key group). Matches what infrastructure/etcd's Ansible
+    # role issued: the gateway cert has no CN (the etcd gateway rejects one), the admin
+    # CN is the etcd root user, and only members' service processes read their own keys.
+    return [
+        ('server', 'homelab-etcd-server', name, [f'IP:{address}', f'DNS:{name}'], 'homelab-etcd'),
+        ('peer', 'homelab-etcd-peer', 'homelab-etcd-peer', [f'IP:{address}', f'DNS:{name}'], 'homelab-etcd'),
+        ('gateway', 'homelab-etcd-gateway', '', [f'DNS:{name}'], 'homelab-etcd'),
+        ('admin', 'homelab-etcd-admin', 'root', [], 'root'),
+    ]
+
+
+def run(argv, **kwargs):
+    return subprocess.run(argv, check=True, capture_output=True, text=True, timeout=60, **kwargs).stdout
+
+
+def needs_renewal(cert, renew_before):
+    if not cert.exists():
+        return True
+    # -checkend exits 1 when the certificate expires within the window.
+    return subprocess.run(['openssl', 'x509', '-checkend', str(renew_before), '-noout', '-in', str(cert)],
+                          capture_output=True, timeout=10).returncode != 0
+
+
+def write(path, content, group, mode):
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.' + path.name)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(content)
+        os.chown(tmp, 0, grp.getgrnam(group).gr_gid)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def bao(url, path, body, token=None):
+    headers = {'Content-Type': 'application/json'}
+    if token:
+        headers['X-Vault-Token'] = token
+    req = urllib.request.Request(f'{url}/v1/{path}', data=json.dumps(body).encode(), headers=headers, method='POST')
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.load(resp) if resp.status != 204 else {}
+
+
+def login(url, role):
+    # Never in argv or logs: the JWT-SVID and the token only live in this process.
+    out = json.loads(run(['spire-agent', 'api', 'fetch', 'jwt', '-audience', 'openbao',
+                          '-socketPath', SPIRE_SOCKET, '-output', 'json']))
+    block = out[0] if isinstance(out, list) else out
+    jwt = block['svids'][0]['svid']
+    return bao(url, 'auth/jwt-spire/login', {'role': role, 'jwt': jwt})['auth']['client_token']
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--config', default='/etc/homelab-etcd/cert.json')
+    cfg = json.loads(Path(ap.parse_args().config).read_text())
+    directory = Path(cfg['dir'])
+    due = [c for c in certificates(cfg['name'], cfg['address'])
+           if needs_renewal(directory / f'{c[0]}.crt', cfg['renew_before_seconds'])]
+    if not due:
+        return 0
+    token = login(cfg['bao'], cfg['bao_role'])
+    try:
+        for name, role, cn, sans, group in due:
+            key = directory / f'{name}.key'
+            if not key.exists():
+                with tempfile.TemporaryDirectory() as tmp:
+                    run(['openssl', 'genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256',
+                         '-out', f'{tmp}/key'])
+                    write(key, Path(f'{tmp}/key').read_text(), group, 0o640)
+            csr = ['openssl', 'req', '-new', '-key', str(key), '-subj', f'/CN={cn}' if cn else '/']
+            if sans:
+                csr += ['-addext', 'subjectAltName=' + ','.join(sans)]
+            signed = bao(cfg['bao'], f'pki/sign/{role}', {'csr': run(csr), 'ttl': cfg['ttl']}, token)['data']
+            chain = '\n'.join(signed['ca_chain'])
+            write(directory / f'{name}.crt', f"{signed['certificate']}\n{chain}\n", group, 0o644)
+            write(directory / 'ca.crt', f'{chain}\n', 'homelab-etcd', 0o644)
+            print(f'renewed {name}')
+    finally:
+        try:
+            bao(cfg['bao'], 'auth/token/revoke-self', {}, token)
+        except OSError:
+            print('token revoke not confirmed; it expires with its TTL')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
