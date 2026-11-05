@@ -3,7 +3,15 @@
 ddupan.top homelab 节点配置的 Cinc（Chef 的社区构建）cookbook。
 
 本仓库只放**代码**：custom resource、recipe 与测试。哪个节点运行哪个 policy、节点属性和
-policy lock 属于部署声明，放在 homelab-infra 的 `infrastructure/chef/`，按本仓库的 git tag 引用。
+policy lock 属于部署声明，放在 homelab-infra 的 `infrastructure/chef/`。
+
+## 发布
+
+policy 从 Gitea 的 Chef registry 取 cookbook（`default_source :supermarket, 'https://git.ddupan.top/api/packages/panxiao81/chef/api/v1'`），
+按 cookbook 自己的版本锁定，不再按整个仓库的 git tag。合并到 main 后 `publish.yml` 把 registry
+里还没有的版本发上去。registry 的版本不可覆盖，所以**改了 cookbook 就要升它的 `version`**，
+PR 的 CI 会检查这一点。签名用 owner 的 registry 密钥（Gitea 用户设置 → Packages → Chef），
+存在本仓库的 Actions secret `CHEF_CLIENT_KEY`。
 
 ## 边界
 
