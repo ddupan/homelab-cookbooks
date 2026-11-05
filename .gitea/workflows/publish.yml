@@ -1,0 +1,59 @@
+name: publish
+
+# Publishes every cookbook whose metadata version is not yet in the Gitea Chef registry.
+# Policies in homelab-infra resolve cookbooks from that registry, so a cookbook version is
+# what they pin, not a repo-wide git tag. Versions are immutable there: ci.yml fails a PR
+# that changes a cookbook without bumping it, so nothing merged is left unpublished.
+on:
+  push:
+    branches: [main]
+    paths: ['cookbooks/**']
+  workflow_dispatch:
+
+concurrency: publish
+
+jobs:
+  publish:
+    runs-on: [self-hosted, pod]
+    env:
+      WORKSTATION: cincproject/workstation:26.3.0
+      SITE: https://git.ddupan.top/api/packages/panxiao81/chef
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: nexus
+        uses: https://git.ddupan.top/panxiao81/ci-actions/setup-nexus@v1
+        with:
+          nexus-url: https://nexus.lab.ddupan.top
+          oci: 'true'
+
+      - name: Pull image
+        env:
+          REGISTRY: ${{ steps.nexus.outputs.oci-public }}
+        run: |
+          image="${REGISTRY#https://}/$WORKSTATION"
+          for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
+          echo "WORKSTATION=$image" >> "$GITHUB_ENV"
+
+      # knife signs requests with the owner's registry key (Gitea user settings → Packages →
+      # Chef). It reaches the container only as an env var and lives in its tmpfs.
+      - name: Publish new versions
+        env:
+          CHEF_CLIENT_KEY: ${{ secrets.CHEF_CLIENT_KEY }}
+        run: |
+          docker run --rm -e CHEF_CLIENT_KEY -e SITE -e HOME=/tmp \
+            -v "$PWD/cookbooks:/cookbooks:ro" "$WORKSTATION" bash -euo pipefail -c '
+              printf "%s\n" "$CHEF_CLIENT_KEY" > /tmp/key.pem
+              published=$(curl -fsS --retry 5 --retry-all-errors "$SITE/api/v1/universe")
+              for dir in /cookbooks/*/; do
+                cb=$(basename "$dir")
+                version=$(sed -n "s/^version *[\x27\"]\([^\x27\"]*\).*/\1/p" "$dir/metadata.rb")
+                if printf "%s" "$published" | python3 -c "import json,sys; sys.exit(0 if sys.argv[2] in json.load(sys.stdin).get(sys.argv[1], {}) else 1)" "$cb" "$version"; then
+                  echo "$cb $version already published"
+                  continue
+                fi
+                # Category is required for a cookbook the site has not seen; Gitea ignores it.
+                knife supermarket share "$cb" Other -o /cookbooks -m "$SITE" \
+                  -u panxiao81 -k /tmp/key.pem --yes
+                echo "$cb $version published"
+              done'
