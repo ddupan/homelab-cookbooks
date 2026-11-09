@@ -10,13 +10,22 @@ describe 'homelab_compute::default' do
     'node_labels' => { 'topology.kubernetes.io/zone' => 'pve' },
   }
 
-  it 'installs the firmware and vTPM packages UEFI domains need' do
-    expect(chef_run).to install_package(%w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools))
+  it 'installs the firmware, vTPM and LXC packages instances need' do
+    expect(chef_run).to install_package(%w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools lxc e2fsprogs libarchive13t64))
   end
 
   it 'runs the system libvirt daemon the agent drives' do
     expect(chef_run).to enable_service('libvirtd')
     expect(chef_run).to start_service('libvirtd')
+  end
+
+  it 'keeps the LXC package from running its own bridge' do
+    expect(chef_run).to stop_service('lxc-net')
+    expect(chef_run).to disable_service('lxc-net')
+  end
+
+  it 'does not pass NoNewPrivileges on to containers' do
+    expect(chef_run.systemd_unit('ayatori-compute-agent.service').content).not_to include('NoNewPrivileges')
   end
 
   it 'installs the agent from the pinned Ayatori release' do
