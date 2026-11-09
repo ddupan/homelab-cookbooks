@@ -7,7 +7,7 @@ ay = node['homelab_ayatori']
   raise "homelab_ayatori.#{key} must be set by the node policy" if ay[key].nil?
 end
 raise 'homelab_ayatori.environment must be dev or prod' unless %w(dev prod).include?(ay['environment'])
-%w(name host hostaddr port).each do |key|
+%w(name host port).each do |key|
   raise "homelab_ayatori.postgresql_instance.#{key} must be set" if ay['postgresql_instance'][key].nil?
 end
 

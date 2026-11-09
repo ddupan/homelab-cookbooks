@@ -7,7 +7,7 @@ ay['environment'] = nil # dev | prod
 # under the same tag; the digest makes that an explicit policy change).
 ay['release'] = nil
 ay['image'] = nil # zot.lab.ddupan.top/panxiao81/ayatori-manager:<release>@sha256:...
-ay['postgresql_instance'] = {} # name, host, hostaddr, port
+ay['postgresql_instance'] = {} # name, host, port; hostaddr only where the Ayatori release still requires it
 # Optional: Flux syncs Tenants/Databases (and LoadBalancerHosts) from this repo path.
 ay['gitops'] = {} # url, path, branch
 # Optional: enables the LoadBalancer controller with this VIP pool.

@@ -141,7 +141,7 @@ spec:
       MANAGEMENT_CREDENTIAL_PATH: <%= "infra/postgresql/ayatori/#{@environment}".to_json %>
       POSTGRESQL_INSTANCE: <%= @postgresql['name'].to_json %>
       POSTGRESQL_HOST: <%= @postgresql['host'].to_json %>
-      POSTGRESQL_HOSTADDR: <%= @postgresql['hostaddr'].to_json %>
+      POSTGRESQL_HOSTADDR: <%= @postgresql['hostaddr'].to_s.to_json %>
       POSTGRESQL_PORT: "<%= @postgresql['port'] %>"
 <% if @node_agents -%>
 ---
