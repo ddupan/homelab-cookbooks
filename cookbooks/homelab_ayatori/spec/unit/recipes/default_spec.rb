@@ -24,6 +24,13 @@ describe 'homelab_ayatori::default' do
       .with_content('address: 10.0.0.11')
   end
 
+  it 'keeps a declared hostaddr on the Instance' do
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+      expect(c).to include('POSTGRESQL_HOSTADDR: "10.0.0.1"')
+      expect(c).not_to include('/spec/endpoint/hostaddr')
+    }
+  end
+
   it 'lets kube-state-metrics read LoadBalancer status for the endpoint health metrics' do
     is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('network.ayatori.ddupan.top]')
   end
@@ -90,8 +97,8 @@ describe 'homelab_ayatori::default' do
   context 'without hostaddr' do
     default_attributes['homelab_ayatori']['postgresql_instance']['hostaddr'] = nil
 
-    it 'renders an empty address so the Instance resolves host' do
-      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('POSTGRESQL_HOSTADDR: ""')
+    it 'removes the field from the Instance so Flux does not apply a null' do
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('path: /spec/endpoint/hostaddr')
     end
   end
 
