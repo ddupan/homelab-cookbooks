@@ -34,10 +34,10 @@ suites:
         registry_mirror: <%= ENV['DOKKEN_REGISTRY'] %>
       homelab_ayatori:
         environment: dev
-        release: v0.3.0-rc.0
-        # A build with client-credentials (Ayatori ADR-0021); the manager itself cannot reach
+        release: v0.3.0
+        # A tagged release: Zot garbage-collects untagged builds. The manager itself cannot reach
         # Bao or PostgreSQL from Kitchen and keeps restarting, which the suite does not check.
-        image: zot.lab.ddupan.top/panxiao81/ayatori-manager@sha256:72d86d2afa20ce0a92cf2953a5e97b742c3195e46c2011821128cd24eed3a909
+        image: zot.lab.ddupan.top/panxiao81/ayatori-manager@sha256:2d68a8e50c33806aa3569fbba376ca96ad66201a4ff1e76e33b410eec8ad77a8
         postgresql_instance:
           name: kitchen
           host: pg.invalid
