@@ -65,7 +65,10 @@ def collect(config):
     for cert in config['certificates']:
         check('certificate_expiry_timestamp_seconds', lambda c=cert: certificate_expiry(c['path']),
               certificate=cert['name'])
-    check('backup_timestamp_seconds', lambda: latest_snapshot(config['snapshot_dir']), backup='etcd')
+    # 可选：laptop 已不是 etcd 成员（#570），但仍用这份采集程序看 PostgreSQL，
+    # 无条件检查会让它永远报 etcd 备份过期。
+    if config.get('snapshot_dir'):
+        check('backup_timestamp_seconds', lambda: latest_snapshot(config['snapshot_dir']), backup='etcd')
     if config.get('repository'):
         check('backup_timestamp_seconds', lambda: latest_backup(json.loads(command([
             'runuser', '-u', 'pgbackup', '--', 'pgbackrest',
