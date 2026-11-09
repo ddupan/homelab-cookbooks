@@ -10,6 +10,10 @@ describe 'homelab_compute::default' do
     'node_labels' => { 'topology.kubernetes.io/zone' => 'pve' },
   }
 
+  it 'installs the firmware and vTPM packages UEFI domains need' do
+    expect(chef_run).to install_package(%w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools))
+  end
+
   it 'runs the system libvirt daemon the agent drives' do
     expect(chef_run).to enable_service('libvirtd')
     expect(chef_run).to start_service('libvirtd')
