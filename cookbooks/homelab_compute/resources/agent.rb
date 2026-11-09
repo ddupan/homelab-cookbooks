@@ -58,7 +58,9 @@ action :install do
 
   # Root: it drives the system libvirt daemon and, with LXC and instance memory
   # guarantees (ADR-0015), cgroups on the host. Not Requires=libvirtd: with libvirt
-  # down the agent keeps retrying and reports the node not ready.
+  # down the agent keeps retrying and reports the node not ready. ProtectSystem=full, not
+  # strict: the agent renames image replicas into pool directories the API declares, which
+  # cannot be listed in ReadWritePaths ahead of time.
   systemd_unit 'ayatori-compute-agent.service' do
     content <<~UNIT
       [Unit]
@@ -72,7 +74,7 @@ action :install do
       Restart=always
       RestartSec=5
       NoNewPrivileges=yes
-      ProtectSystem=strict
+      ProtectSystem=full
       ReadWritePaths=#{CREDENTIALS}
       StateDirectory=ayatori/compute-agent
       StateDirectoryMode=0700
