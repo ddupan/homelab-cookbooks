@@ -5,7 +5,7 @@ describe systemd_service('ayatori-compute-agent') do
 end
 
 # The stand-in agent reached the system libvirt through its unit, then wrote into its
-# state directory under ProtectSystem=strict.
+# state directory under ProtectSystem=full.
 describe file('/var/lib/ayatori/compute-agent/started') do
   it { should exist }
 end

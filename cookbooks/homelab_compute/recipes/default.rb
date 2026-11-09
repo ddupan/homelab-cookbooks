@@ -4,7 +4,8 @@
 compute = node['homelab_compute']
 raise 'homelab_compute.agent.version must be set by the node policy' if compute['agent']['version'].nil?
 
-package %w(libvirt-daemon-system qemu-system-x86 qemu-utils) do
+# ovmf 提供 UEFI 固件；swtpm 与 swtpm-tools 提供 vTPM 模拟器及其状态初始化。
+package %w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools) do
   options '--no-install-recommends'
 end
 
