@@ -52,6 +52,11 @@ class CollectorTests(unittest.TestCase):
             self.assertIn('homelab_data_dev_sql_ready 0.0', output)
             self.assertIn('check="dev_sql_ready"} 1.0', output)
 
+    def test_no_snapshot_dir_skips_etcd_backup_check(self):
+        output = collector.collect({'certificates': []})
+        self.assertNotIn('backup="etcd"', output)
+        self.assertIn('homelab_data_collection_timestamp_seconds', output)
+
     def test_atomic_output_replaces_old_success(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d, 'health.prom')
