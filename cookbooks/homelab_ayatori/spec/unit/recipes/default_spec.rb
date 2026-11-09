@@ -87,6 +87,17 @@ describe 'homelab_ayatori::default' do
     it('fails') { expect { chef_run }.to raise_error(RuntimeError, /needs homelab_ayatori.node_agents/) }
   end
 
+  context 'without hostaddr' do
+    default_attributes['homelab_ayatori'] = {
+      'environment' => 'dev', 'release' => 'v0.3.0', 'image' => image,
+      'postgresql_instance' => { 'name' => 'pg', 'host' => 'pg.lab', 'port' => 5432 }
+    }
+
+    it 'renders an empty address so the Instance resolves host' do
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('POSTGRESQL_HOSTADDR: ""')
+    end
+  end
+
   context 'with an image pinned only by tag' do
     default_attributes['homelab_ayatori']['image'] = 'zot.lab.ddupan.top/panxiao81/ayatori-manager:v0.3.0'
 
