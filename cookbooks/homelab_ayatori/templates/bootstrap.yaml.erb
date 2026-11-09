@@ -133,6 +133,15 @@ spec:
     name: ayatori
   path: ./deploy/flux/control-plane
   prune: true
+<% if @postgresql['hostaddr'].to_s.empty? -%>
+  # An empty substitution renders null, which the API server rejects for a string field.
+  patches:
+  - target:
+      kind: PostgreSQLInstance
+    patch: |
+      - op: remove
+        path: /spec/endpoint/hostaddr
+<% end -%>
   postBuild:
     substitute:
       OPENBAO_ADDRESS: <%= @openbao_address.to_json %>
