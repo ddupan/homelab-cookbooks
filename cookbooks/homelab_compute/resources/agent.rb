@@ -60,7 +60,9 @@ action :install do
   # guarantees (ADR-0015), cgroups on the host. Not Requires=libvirtd: with libvirt
   # down the agent keeps retrying and reports the node not ready. ProtectSystem=full, not
   # strict: the agent renames image replicas into pool directories the API declares, which
-  # cannot be listed in ReadWritePaths ahead of time.
+  # cannot be listed in ReadWritePaths ahead of time. No NoNewPrivileges: LXC containers
+  # are forked from the agent and inherit it for good, so setuid binaries inside them
+  # (sudo, su, ping) would stop working.
   systemd_unit 'ayatori-compute-agent.service' do
     content <<~UNIT
       [Unit]
@@ -73,7 +75,6 @@ action :install do
       ExecStart=/usr/local/bin/ayatori-compute-agent -config /etc/ayatori/compute-agent.yaml
       Restart=always
       RestartSec=5
-      NoNewPrivileges=yes
       ProtectSystem=full
       ReadWritePaths=#{CREDENTIALS}
       StateDirectory=ayatori/compute-agent
