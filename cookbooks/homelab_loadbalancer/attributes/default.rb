@@ -22,6 +22,8 @@ default['homelab_loadbalancer']['agent']['url_base'] = nil
 # environment's manager runs with --loadbalancer-agent-convergence. Needs join.
 default['homelab_loadbalancer']['agent']['join'] = false
 default['homelab_loadbalancer']['agent']['converge'] = false
+# Ayatori ADR-0025, e.g. '30s': only with a release that knows gracefulRestartTime.
+default['homelab_loadbalancer']['agent']['graceful_restart_time'] = nil
 # Defaults to the environment's root in Bao; Kitchen points it at a fixture file.
 default['homelab_loadbalancer']['client_ca_source'] = nil
 # VIPs are local addresses on this host: any wildcard listener would answer on every

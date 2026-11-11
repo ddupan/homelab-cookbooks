@@ -60,6 +60,7 @@ homelab_loadbalancer_agent 'default' do
   vip_pool lb['bgp']['vip_pool']
   metrics_address "#{address}:9641"
   join lb['agent']['join']
+  graceful_restart_time lb['agent']['graceful_restart_time']
   if converge
     data_plane('url' => "http://127.0.0.1:#{local_port}", 'username' => 'lb-agent', 'passwordFile' => local_password)
   end

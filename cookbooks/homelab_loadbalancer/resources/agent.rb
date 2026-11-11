@@ -24,6 +24,11 @@ property :vip_pool, String, required: true
 # environment's manager runs with --loadbalancer-agent-convergence at the same time.
 property :join, [true, false], default: false
 property :data_plane, [Hash, nil]
+# Ayatori ADR-0025: a Go duration such as '30s' turns on BGP graceful restart; the
+# release must know the key (strict parsing). Then a restart from here is a SIGKILL, so
+# the router keeps this host's paths until the agent is back; a human's systemctl
+# restart still withdraws them at once.
+property :graceful_restart_time, [String, nil]
 property :metrics_address, String, required: true,
                                    callbacks: { 'must bind a specific address, never all interfaces' => lambda { |v|
                                      !v.start_with?('0.0.0.0:', ':', '[::]:')
@@ -91,6 +96,7 @@ action :install do
   }
   config.merge!('nodeName' => node['hostname'], 'credentialsDir' => CREDENTIALS) if new_resource.join
   config['dataPlane'] = new_resource.data_plane if new_resource.data_plane
+  config['gracefulRestartTime'] = new_resource.graceful_restart_time if new_resource.graceful_restart_time
 
   # JSON is valid YAML, and the agent parses it strictly: an unknown key fails at start.
   file '/etc/ayatori/lb-agent.yaml' do
@@ -133,6 +139,10 @@ action :install do
   end
 
   service 'ayatori-lb-agent' do
+    # Restart=on-failure brings it back after RestartSec. Not running yet: start it.
+    if new_resource.graceful_restart_time
+      restart_command 'systemctl kill -s SIGKILL ayatori-lb-agent || systemctl restart ayatori-lb-agent'
+    end
     action :start
   end
 end

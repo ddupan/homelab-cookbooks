@@ -90,6 +90,20 @@ describe 'homelab_loadbalancer::default' do
     )
   end
 
+  it 'restarts the agent the ordinary way while graceful restart is off' do
+    expect(chef_run.service('ayatori-lb-agent').restart_command).to be_nil
+  end
+
+  context 'with graceful restart' do
+    default_attributes['homelab_loadbalancer']['agent'] = { 'version' => '0.4.0', 'graceful_restart_time' => '30s' }
+
+    it 'configures it and restarts the agent with SIGKILL so the router keeps its paths' do
+      expect(JSON.parse(chef_run.file('/etc/ayatori/lb-agent.yaml').content)).to include('gracefulRestartTime' => '30s')
+      expect(chef_run.service('ayatori-lb-agent').restart_command)
+        .to eq('systemctl kill -s SIGKILL ayatori-lb-agent || systemctl restart ayatori-lb-agent')
+    end
+  end
+
   it 'gives the agent only lo management and the read-only HAProxy socket' do
     unit = chef_run.systemd_unit('ayatori-lb-agent.service').content
     expect(unit).to include('User=ayatori-lb-agent').and include('SupplementaryGroups=haproxy')
