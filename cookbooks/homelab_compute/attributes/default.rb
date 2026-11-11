@@ -1,6 +1,6 @@
 # Every key without a default is required and comes from the node policy in
 # homelab-infra. Nothing here is secret.
-# The Ayatori release whose compute-agent runs here; the tarball is a release attachment.
+# The Ayatori release whose compute-agent and imds run here; the tarballs are release attachments.
 default['homelab_compute']['agent']['version'] = nil
 # Defaults to that release's download URL; Kitchen points it at a fixture directory.
 default['homelab_compute']['agent']['url_base'] = nil

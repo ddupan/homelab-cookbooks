@@ -6,8 +6,8 @@ raise 'homelab_compute.agent.version must be set by the node policy' if compute[
 
 # ovmf 提供 UEFI 固件；swtpm 与 swtpm-tools 提供 vTPM 模拟器及其状态初始化。
 # lxc 提供 agent 动态链接的 liblxc 与手工排障用的 lxc-*；e2fsprogs 的 mke2fs 经 libarchive 把 Rootfs 镜像
-# 直接生成 ext4（libarchive 只是它的 Suggests，不会自动安装）。
-package %w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools lxc e2fsprogs libarchive13t64) do
+# 直接生成 ext4（libarchive 只是它的 Suggests，不会自动安装）。nftables 提供 ayatori-imds 用的 nft。
+package %w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools lxc e2fsprogs libarchive13t64 nftables) do
   options '--no-install-recommends'
 end
 
@@ -29,4 +29,9 @@ homelab_compute_agent 'default' do
   host_reserved_memory compute['host_reserved_memory']
   node_labels compute['node_labels'].to_h
   metrics_address "#{node['ipaddress']}:9642"
+end
+
+homelab_compute_imds 'default' do
+  version compute['agent']['version']
+  url_base compute['agent']['url_base'] if compute['agent']['url_base']
 end
