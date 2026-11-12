@@ -18,12 +18,25 @@ file '/etc/compute-test/agent/pkg/compute-agent' do
   mode '0755'
 end
 
+# imds would replace nftables rules; the stand-in only proves its unit starts it with
+# the agent's state directory.
+file '/etc/compute-test/agent/pkg/imds' do
+  content <<~SH
+    #!/bin/sh
+    set -e
+    [ "$1" = -state-dir ] && [ "$2" = /var/lib/ayatori/compute-agent ]
+    exec sleep infinity
+  SH
+  mode '0755'
+end
+
 execute 'test agent release' do
   cwd '/etc/compute-test/agent'
   command <<~SH
     set -e
     tar -C pkg -czf ayatori-compute-agent_0.0.0-test_linux_amd64.tar.gz compute-agent
-    sha256sum ayatori-compute-agent_0.0.0-test_linux_amd64.tar.gz > ayatori_0.0.0-test_checksums.txt
+    tar -C pkg -czf ayatori-imds_0.0.0-test_linux_amd64.tar.gz imds
+    sha256sum ayatori-*_0.0.0-test_linux_amd64.tar.gz > ayatori_0.0.0-test_checksums.txt
   SH
   creates '/etc/compute-test/agent/ayatori_0.0.0-test_checksums.txt'
 end

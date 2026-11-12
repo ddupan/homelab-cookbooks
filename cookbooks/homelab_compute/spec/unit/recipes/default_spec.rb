@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe 'homelab_compute::default' do
   platform 'debian', '13'
-  step_into :homelab_compute_agent, :homelab_base_verified_release
+  step_into :homelab_compute_agent, :homelab_compute_imds, :homelab_base_verified_release
   automatic_attributes['hostname'] = 'compute1'
   automatic_attributes['ipaddress'] = '10.60.0.41'
   default_attributes['homelab_compute'] = {
@@ -11,7 +11,7 @@ describe 'homelab_compute::default' do
   }
 
   it 'installs the firmware, vTPM and LXC packages instances need' do
-    expect(chef_run).to install_package(%w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools lxc e2fsprogs libarchive13t64))
+    expect(chef_run).to install_package(%w(libvirt-daemon-system qemu-system-x86 qemu-utils ovmf swtpm swtpm-tools lxc e2fsprogs libarchive13t64 nftables))
   end
 
   it 'runs the system libvirt daemon the agent drives' do
@@ -31,6 +31,16 @@ describe 'homelab_compute::default' do
   it 'installs the agent from the pinned Ayatori release' do
     expect(chef_run.remote_file('/var/cache/homelab-cinc/ayatori-compute-agent_0.4.0_linux_amd64.tar.gz').source)
       .to eq(['https://git.ddupan.top/panxiao81/ayatori/releases/download/v0.4.0/ayatori-compute-agent_0.4.0_linux_amd64.tar.gz'])
+  end
+
+  it 'installs imds from its own tarball of the same release' do
+    expect(chef_run.remote_file('/var/cache/homelab-cinc/ayatori-imds_0.4.0_linux_amd64.tar.gz').source)
+      .to eq(['https://git.ddupan.top/panxiao81/ayatori/releases/download/v0.4.0/ayatori-imds_0.4.0_linux_amd64.tar.gz'])
+    expect(chef_run).to start_service('ayatori-imds')
+  end
+
+  it 'gives imds nothing but CAP_NET_ADMIN' do
+    expect(chef_run.systemd_unit('ayatori-imds.service').content).to include('CapabilityBoundingSet=CAP_NET_ADMIN')
   end
 
   it 'configures the agent in the schema it parses strictly' do
