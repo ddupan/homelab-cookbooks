@@ -1,27 +1,13 @@
-# HAProxy Data Plane API, the endpoint Ayatori writes LoadBalancer sections through.
-# Reachable only over mTLS: the client CA is the environment's pki-loadbalancer-<env>
-# root, so only that environment's Ayatori controller can connect. dataplaneapi still
-# insists on a Basic user (it refuses to start without one); only its crypt hash is
-# on the node.
+# HAProxy Data Plane API, the endpoint the host's own Ayatori agent converges HAProxy
+# through (Ayatori ADR-0022): plain HTTP on loopback only, one user, the agent's. Its
+# password is generated on this host and never leaves it; the file is readable by the
+# agent alone. Nothing listens on the node address: the control plane never connects.
 unified_mode true
 
 property :version, String, default: '3.4.3'
-property :listen, String, required: true
-property :port, Integer, default: 5555
-property :certificate, String, required: true
-property :key, String, required: true
-property :client_ca, String, required: true
-property :username, String, default: 'ayatori'
-# Ayatori ADR-0022: the host's own agent converges HAProxy through a second listener,
-# plain HTTP on loopback only, as its own user. The password is generated on this host
-# and never leaves it; the file is readable by the agent alone.
 property :local_port, Integer, default: 5556
 property :local_user, String, default: 'lb-agent'
-property :local_password_file, [String, nil]
-property :password_hash, String, required: true,
-                                 callbacks: { 'must be a SHA-512 crypt hash, never a plaintext password' => lambda { |v|
-                                   v.start_with?('$6$')
-                                 } }
+property :local_password_file, String, required: true
 
 action :install do
   homelab_base_verified_release '/usr/local/bin/dataplaneapi' do
@@ -55,18 +41,14 @@ action :install do
       config_version: 2
       name: #{node['hostname']}
       dataplaneapi:
-        scheme: [#{local_password_file ? 'http, https' : 'https'}]
-      #{local_password_file ? "  host: 127.0.0.1\n  port: #{new_resource.local_port}\n" : ''}  tls:
-          tls_host: #{new_resource.listen}
-          tls_port: #{new_resource.port}
-          tls_certificate: #{new_resource.certificate}
-          tls_key: #{new_resource.key}
-          tls_ca: #{new_resource.client_ca}
+        scheme: [http]
+        host: 127.0.0.1
+        port: #{new_resource.local_port}
         user:
-          - name: #{new_resource.username}
-            password: '#{new_resource.password_hash}'
-            insecure: false
-      #{local_password_file ? "    - name: #{new_resource.local_user}\n      password: '#{local_password.call}'\n      insecure: true\n" : ''}  transaction:
+          - name: #{new_resource.local_user}
+            password: '#{local_password.call}'
+            insecure: true
+        transaction:
           transaction_dir: /var/lib/dataplaneapi/transactions
           backups_dir: /var/lib/dataplaneapi/backups
         resources:
@@ -95,7 +77,7 @@ action :install do
     YAML
     mode '0600'
     # Always: the diff shows the OLD content too, so dropping the local user printed its
-    # live password into a PR's why-run comment (2026-11-04). The admin hash is here as well.
+    # live password into a PR's why-run comment (2026-11-04).
     sensitive true
     notifies :restart, 'service[dataplaneapi]'
   end

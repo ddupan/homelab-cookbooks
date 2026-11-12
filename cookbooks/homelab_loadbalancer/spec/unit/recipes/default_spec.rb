@@ -1,15 +1,12 @@
-require 'tmpdir'
 require 'spec_helper'
 
 describe 'homelab_loadbalancer::default' do
   platform 'debian', '13'
   step_into :homelab_loadbalancer_haproxy, :homelab_loadbalancer_dataplaneapi, :homelab_loadbalancer_agent,
-            :homelab_loadbalancer_server_cert, :homelab_loadbalancer_vip_guard, :homelab_base_verified_release
+            :homelab_loadbalancer_vip_guard, :homelab_base_verified_release
   automatic_attributes['hostname'] = 'lb1'
   automatic_attributes['ipaddress'] = '10.60.0.31'
   default_attributes['homelab_loadbalancer'] = {
-    'environment' => 'prod',
-    'dataplaneapi' => { 'password_hash' => '$6$salt$hash' },
     'agent' => { 'version' => '0.3.0' },
     'bgp' => { 'local_as' => 65101, 'neighbors' => { '10.60.0.1' => 65000 }, 'vip_pool' => '10.62.1.0/24' },
   }
@@ -59,19 +56,13 @@ describe 'homelab_loadbalancer::default' do
     }
   end
 
-  it 'trusts only this environment\'s client CA' do
-    expect(chef_run.remote_file('/etc/ayatori-lb/client-ca.pem').source)
-      .to eq(['https://bao.lab.ddupan.top:8200/v1/pki-loadbalancer-prod/ca/pem'])
-  end
-
   it 'validates dataplaneapi transactions with the base config loaded first' do
     is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml')
       .with_content(%r{validate_files_before:\n\s+- /etc/haproxy/base.cfg})
-      .with_content('tls_ca: /etc/ayatori-lb/client-ca.pem')
       .with_content('reload_cmd: systemctl reload haproxy.service')
   end
 
-  it 'never prints the dataplaneapi config in a diff, even without a local user' do
+  it 'never prints the dataplaneapi config in a diff' do
     expect(chef_run.file('/etc/dataplaneapi/dataplaneapi.yml').sensitive).to be true
   end
 
@@ -86,7 +77,10 @@ describe 'homelab_loadbalancer::default' do
       'asn' => 65101, 'routerID' => '10.60.0.31',
       'neighbors' => [{ 'address' => '10.60.0.1', 'asn' => 65000 }],
       'vipPool' => '10.62.1.0/24', 'haproxySocket' => '/run/haproxy/agent.sock',
-      'metricsAddress' => '10.60.0.31:9641'
+      'metricsAddress' => '10.60.0.31:9641',
+      'nodeName' => 'lb1', 'credentialsDir' => '/etc/ayatori/lb-agent',
+      'dataPlane' => { 'url' => 'http://127.0.0.1:5556', 'username' => 'lb-agent',
+                       'passwordFile' => '/etc/ayatori/lb-agent-dataplane.password' }
     )
   end
 
@@ -111,34 +105,12 @@ describe 'homelab_loadbalancer::default' do
     expect(unit).not_to include('BindsTo=')
   end
 
-  # Without join the agent, its unit and dataplaneapi stay exactly as before, so turning
-  # nothing on restarts nothing.
-  it 'adds no join or local listener while the environment has not switched' do
-    expect(chef_run.systemd_unit('ayatori-lb-agent.service').content).not_to include('ReadWritePaths')
-    expect(chef_run).not_to create_directory('/etc/ayatori/lb-agent')
-    is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content { |config|
-      expect(config).to include("scheme: [https]\n  tls:\n").and include("insecure: false\n  transaction:\n")
-      expect(config).not_to include('lb-agent')
-    }
-  end
-
-  context 'when the environment joins and converges on the host (ADR-0022)' do
+  context 'with the local password file in place' do
     before do
       allow(::File).to receive(:exist?).and_call_original
       allow(::File).to receive(:exist?).with('/etc/ayatori/lb-agent-dataplane.password').and_return(true)
       allow(::File).to receive(:read).and_call_original
       allow(::File).to receive(:read).with('/etc/ayatori/lb-agent-dataplane.password').and_return("s3cret\n")
-    end
-
-    default_attributes['homelab_loadbalancer']['agent'] = { 'version' => '0.3.0', 'join' => true, 'converge' => true }
-
-    it 'joins as the node and converges through the loopback listener' do
-      config = JSON.parse(chef_run.file('/etc/ayatori/lb-agent.yaml').content)
-      expect(config).to include(
-        'nodeName' => 'lb1', 'credentialsDir' => '/etc/ayatori/lb-agent',
-        'dataPlane' => { 'url' => 'http://127.0.0.1:5556', 'username' => 'lb-agent',
-                         'passwordFile' => '/etc/ayatori/lb-agent-dataplane.password' }
-      )
     end
 
     it 'gives the agent its credentials directory and nothing else writable' do
@@ -152,7 +124,7 @@ describe 'homelab_loadbalancer::default' do
         .with(owner: 'ayatori-lb-agent', mode: '0400', sensitive: true)
     end
 
-    # A why-run creates nothing: the run that turns converge on must still render.
+    # A why-run creates nothing: the first run on a new host must still render.
     it 'renders before the password file exists, as in the first why-run' do
       allow(::File).to receive(:exist?).with('/etc/ayatori/lb-agent-dataplane.password').and_return(false)
       is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content("password: '(created on apply)'")
@@ -164,13 +136,24 @@ describe 'homelab_loadbalancer::default' do
         .to be < names.index('file[/etc/ayatori/lb-agent.yaml]')
     end
 
-    it 'adds a loopback listener and the agent user, keeping the remote mTLS one' do
+    # ADR-0022: the control plane never connects, so nothing listens on the node address.
+    it 'listens on loopback only, for the agent alone' do
       is_expected.to render_file('/etc/dataplaneapi/dataplaneapi.yml').with_content { |config|
-        expect(config).to include("scheme: [http, https]\n  host: 127.0.0.1\n  port: 5556\n  tls:\n")
-        expect(config).to include("- name: lb-agent\n      password: 's3cret'\n      insecure: true\n  transaction:")
-        expect(config).to include('tls_ca: /etc/ayatori-lb/client-ca.pem')
+        expect(config).to include("scheme: [http]\n  host: 127.0.0.1\n  port: 5556\n  user:\n")
+        expect(config).to include("user:\n    - name: lb-agent\n      password: 's3cret'\n      insecure: true\n  transaction:")
+        expect(config).not_to include('tls')
       }
     end
+  end
+
+  it 'removes the remote listener\'s certificate, its renewal and the client CA' do
+    expect(chef_run).to stop_systemd_unit('ayatori-lb-cert.timer')
+    expect(chef_run).to delete_systemd_unit('ayatori-lb-cert.timer')
+    expect(chef_run).to delete_systemd_unit('ayatori-lb-cert.service')
+    expect(chef_run).to delete_file('/usr/local/sbin/ayatori-lb-cert')
+    expect(chef_run).to delete_file('/etc/ayatori-lb/client-ca.pem')
+    expect(chef_run).to delete_directory('/etc/ayatori-lb/tls').with(recursive: true)
+    expect(chef_run).to delete_directory('/var/lib/ayatori-lb-acme').with(recursive: true)
   end
 
   it 'removes the gobgpd speaker it replaces' do
@@ -178,63 +161,8 @@ describe 'homelab_loadbalancer::default' do
     expect(chef_run).to delete_directory('/etc/gobgpd')
   end
 
-  it "answers http-01 on the node address only, for the node's lab name" do
-    is_expected.to render_file('/usr/local/sbin/ayatori-lb-cert')
-      .with_content("--http.address '10.60.0.31:80'")
-      .with_content("--domains 'lb1.lab.ddupan.top'")
-      .with_content('https://bao.lab.ddupan.top:8200/v1/pki/acme/directory')
-      .with_content("--key-type 'RSA2048'")
-  end
-
-  it 'issues only when no certificate has been deployed yet' do
-    expect(chef_run.execute('/usr/local/sbin/ayatori-lb-cert').creates).to eq('/etc/ayatori-lb/tls/server.crt')
-  end
-
-  # Runs the rendered hook against a stub systemctl: on the first issue neither unit
-  # exists yet (try-restart would exit 5 and fail the issue); on a renewal both do.
-  {
-    'skips units that are not installed yet (first issue)' => [[], []],
-    'restarts dataplaneapi after a renewal, since it reads the certificate at start' =>
-      [%w(dataplaneapi.service), %w(dataplaneapi.service)],
-  }.each do |name, (installed, restarted)|
-    it name do
-      Dir.mktmpdir do |dir|
-        hook = File.join(dir, 'hook')
-        File.write(hook, chef_run.file('/usr/local/sbin/ayatori-lb-cert-deploy').content
-          .gsub('/etc/ayatori-lb/tls/', "#{dir}/"))
-        File.write(File.join(dir, 'systemctl'), <<~SH)
-          #!/bin/sh
-          case "$1" in
-            cat) case " #{installed.join(' ')} " in *" $2 "*) exit 0 ;; *) exit 1 ;; esac ;;
-            try-restart) echo "$2" >> #{dir}/restarted ;;
-          esac
-        SH
-        File.write(File.join(dir, 'cert'), 'c')
-        File.chmod(0o755, hook, File.join(dir, 'systemctl'))
-        env = { 'PATH' => "#{dir}:/usr/bin:/bin", 'LEGO_HOOK_CERT_PATH' => File.join(dir, 'cert'),
-                'LEGO_HOOK_CERT_KEY_PATH' => File.join(dir, 'cert') }
-        expect(system(env, hook)).to be true
-        log = File.join(dir, 'restarted')
-        expect(File.exist?(log) ? File.read(log).split : []).to eq(restarted)
-      end
-    end
-  end
-
-  it 'refuses a plaintext Basic password' do
-    klass = Chef::Resource.resource_for_node(:homelab_loadbalancer_dataplaneapi, chef_run.node)
-    expect { klass.new('default').password_hash('plaintext') }.to raise_error(Chef::Exceptions::ValidationFailed)
-  end
-
   it 'refuses a wildcard status and metrics address' do
     klass = Chef::Resource.resource_for_node(:homelab_loadbalancer_agent, chef_run.node)
     expect { klass.new('default').metrics_address('0.0.0.0:9641') }.to raise_error(Chef::Exceptions::ValidationFailed)
-  end
-
-  context 'without an environment' do
-    default_attributes['homelab_loadbalancer'] = { 'environment' => nil }
-
-    it 'fails instead of trusting some CA' do
-      expect { chef_run }.to raise_error(RuntimeError, /environment must be set/)
-    end
   end
 end

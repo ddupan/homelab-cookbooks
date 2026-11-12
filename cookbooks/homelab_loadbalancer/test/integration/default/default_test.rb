@@ -1,9 +1,9 @@
-# Runs inside the converged container (Test Kitchen + Cinc Auditor). Calls the APIs
-# the way the Ayatori controller does: mTLS with a client certificate from the
-# environment's CA, plus the Basic user.
+# Runs inside the converged container (Test Kitchen + Cinc Auditor). Calls the Data
+# Plane API the way the host's Ayatori agent does (ADR-0022): loopback, as lb-agent,
+# with the password generated on the host.
 address = sys_info.ip_address.strip
-tls = '--cacert /etc/lb-test/server-ca.pem --cert /etc/lb-test/client.crt --key /etc/lb-test/client.key'
-api = "https://#{address}:5555/v3/services/haproxy"
+auth = '-u "lb-agent:$(cat /etc/ayatori/lb-agent-dataplane.password)"'
+api = 'http://127.0.0.1:5556/v3/services/haproxy'
 
 %w(haproxy dataplaneapi ayatori-lb-agent).each do |unit|
   describe systemd_service(unit) do
@@ -12,33 +12,16 @@ api = "https://#{address}:5555/v3/services/haproxy"
   end
 end
 
-describe file('/usr/local/sbin/ayatori-lb-cert') do
-  its('content') { should include 'https://bao.invalid:8200/v1/pki/acme/directory' }
-end
-
 describe kernel_parameter('net.ipv4.ip_nonlocal_bind') do
   its('value') { should eq 1 }
 end
 
-describe command("curl -sf -o /dev/null -w '%{http_code}' #{tls} -u ayatori:test-only #{api}/configuration/version") do
+describe command("curl -sf -o /dev/null -w '%{http_code}' #{auth} #{api}/configuration/version") do
   its('stdout') { should eq '200' }
 end
 
-# dataplaneapi v3.4.3 skips the Basic check once the client certificate verifies:
-# mTLS against the environment's CA is the real gate, the user only lets it start.
-# If an upgrade starts enforcing Basic, this fails and the password becomes load-bearing.
-describe command("curl -s -o /dev/null -w '%{http_code}' #{tls} -u ayatori:wrong #{api}/configuration/version") do
-  its('stdout') { should eq '200' }
-end
-
-# No client certificate, or one from another CA (another environment): refused in TLS.
-describe command("curl -s --cacert /etc/lb-test/server-ca.pem -u ayatori:test-only #{api}/configuration/version") do
-  its('exit_status') { should_not eq 0 }
-end
-
-describe command('curl -s --cacert /etc/lb-test/server-ca.pem --cert /etc/lb-test/other.crt ' \
-                 "--key /etc/lb-test/other.key -u ayatori:test-only #{api}/configuration/version") do
-  its('exit_status') { should_not eq 0 }
+describe command("curl -s -o /dev/null -w '%{http_code}' -u lb-agent:wrong #{api}/configuration/version") do
+  its('stdout') { should eq '401' }
 end
 
 # What Ayatori does: a frontend bound to a VIP that is not on this host, its backend
@@ -46,17 +29,17 @@ end
 # The reload validates base.cfg + haproxy.cfg together and saves server state.
 describe command(<<~SH) do
   set -e
-  version=$(curl -sf #{tls} -u ayatori:test-only #{api}/configuration/version)
-  tx=$(curl -sf #{tls} -u ayatori:test-only -X POST "#{api}/transactions?version=$version" | sed 's/.*"id":"\\([^"]*\\)".*/\\1/')
-  curl -sf #{tls} -u ayatori:test-only -H 'Content-Type: application/json' -X POST \\
+  version=$(curl -sf #{auth} #{api}/configuration/version)
+  tx=$(curl -sf #{auth} -X POST "#{api}/transactions?version=$version" | sed 's/.*"id":"\\([^"]*\\)".*/\\1/')
+  curl -sf #{auth} -H 'Content-Type: application/json' -X POST \\
     "#{api}/configuration/backends?transaction_id=$tx&full_section=true" \\
     -d '{"name":"lb_test_6443_backend","mode":"tcp","servers":{"s":{"name":"s","address":"api.example.invalid","port":6443,"check":"enabled","init-addr":"none","resolvers":"lan"}}}' >/dev/null
-  curl -sf #{tls} -u ayatori:test-only -H 'Content-Type: application/json' -X POST \\
+  curl -sf #{auth} -H 'Content-Type: application/json' -X POST \\
     "#{api}/configuration/frontends?transaction_id=$tx&full_section=true" \\
     -d '{"name":"lb_test_6443","mode":"tcp","default_backend":"lb_test_6443_backend","binds":{"vip":{"name":"vip","address":"10.62.0.9","port":6443}}}' >/dev/null
-  curl -sf #{tls} -u ayatori:test-only -X PUT "#{api}/transactions/$tx" >/dev/null
+  curl -sf #{auth} -X PUT "#{api}/transactions/$tx" >/dev/null
   for i in $(seq 30); do
-    status=$(curl -sf #{tls} -u ayatori:test-only #{api}/reloads | grep -o '"status":"[a-z_]*"' | tail -1)
+    status=$(curl -sf #{auth} #{api}/reloads | grep -o '"status":"[a-z_]*"' | tail -1)
     case "$status" in *succeeded*) break ;; *failed*) echo "$status"; exit 1 ;; esac
     sleep 1
   done
@@ -84,10 +67,10 @@ end
 describe command(<<~SH) do
   systemctl restart dataplaneapi
   for i in $(seq 30); do
-    curl -sf -o /dev/null #{tls} -u ayatori:test-only #{api}/configuration/version && break
+    curl -sf -o /dev/null #{auth} #{api}/configuration/version && break
     sleep 1
   done
-  curl -s -o /dev/null -w '%{http_code}' #{tls} -u ayatori:test-only #{api}/configuration/frontends/lb_test_6443
+  curl -s -o /dev/null -w '%{http_code}' #{auth} #{api}/configuration/frontends/lb_test_6443
 SH
   its('stdout') { should eq '200' }
 end
@@ -106,19 +89,22 @@ describe file('/etc/haproxy/haproxy.cfg') do
   its('content') { should include 'frontend lb_test_6443' }
 end
 
+# The control plane never connects (ADR-0022): nothing on the node address.
 describe port(5555) do
-  it { should be_listening }
-  its('addresses') { should eq [address] }
+  it { should_not be_listening }
 end
 
-# Nothing secret on the node: the Basic password exists only as a SHA-512 crypt hash,
-# and only root can read it. dataplaneapi rewrites its working copy 0644 whatever
-# ExecStartPre installed, so the 0700 directory is what keeps that copy private.
+describe port(5556) do
+  it { should be_listening }
+  its('addresses') { should eq ['127.0.0.1'] }
+end
+
+# The config holds the agent's password: only root reads it. dataplaneapi rewrites its
+# working copy 0644 whatever ExecStartPre installed, so the 0700 directory is what keeps
+# that copy private.
 %w(/etc/dataplaneapi/dataplaneapi.yml /var/lib/dataplaneapi/dataplaneapi.yml).each do |path|
   describe file(path) do
     its('owner') { should eq 'root' }
-    its('content') { should match(/password: ['"]?\$6\$/) }
-    its('content') { should_not include 'test-only' }
   end
 end
 

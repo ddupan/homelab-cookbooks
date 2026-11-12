@@ -1,42 +1,40 @@
 # Ayatori LoadBalancer host. Chef owns the node — packages, base HAProxy config,
-# systemd, the agent's BGP sessions; Ayatori owns every lb_* section (through
-# dataplaneapi), and the agent decides on this host which VIPs it announces
-# (ADR-0014). Nothing on the node is secret:
-# the server certificate is ACME-issued (renewed by its own timer), the client CA is public and the Basic
-# password is only a crypt hash. With agent.converge (ADR-0022) one secret is generated
-# here: the loopback Data Plane API password of the host's own agent.
+# systemd, the agent; Ayatori's agent on this host owns every lb_* section (through the
+# loopback Data Plane API, ADR-0022) and decides which VIPs it announces (ADR-0014).
+# The one secret, the agent's loopback Data Plane API password, is generated here and
+# never leaves the host.
 require 'securerandom'
 
 lb = node['homelab_loadbalancer']
-%w(environment).each do |key|
-  raise "homelab_loadbalancer.#{key} must be set by the node policy" if lb[key].nil?
-end
 raise 'homelab_loadbalancer.agent.version must be set by the node policy' if lb['agent']['version'].nil?
-raise 'homelab_loadbalancer.environment must be dev or prod' unless %w(dev prod).include?(lb['environment'])
 
 address = node['ipaddress']
-client_ca = '/etc/ayatori-lb/client-ca.pem'
-certificate = '/etc/ayatori-lb/tls/server.crt'
-key = '/etc/ayatori-lb/tls/server.key'
+
+# Until Ayatori ADR-0022 the controller wrote through dataplaneapi on <node>:5555 over
+# mTLS, with an ACME server certificate and the environment's client CA. Neither is
+# needed any more; remove what earlier runs left. lego stays: homelab_base uses it too.
+systemd_unit 'ayatori-lb-cert.timer' do
+  action [:stop, :disable, :delete]
+end
+
+systemd_unit 'ayatori-lb-cert.service' do
+  action :delete
+end
+
+%w(/usr/local/sbin/ayatori-lb-cert /usr/local/sbin/ayatori-lb-cert-deploy /etc/ayatori-lb/client-ca.pem).each do |path|
+  file path do
+    action :delete
+  end
+end
+
+%w(/etc/ayatori-lb/tls /var/lib/ayatori-lb-acme).each do |path|
+  directory path do
+    recursive true
+    action :delete
+  end
+end
 
 directory '/etc/ayatori-lb'
-
-# Only certificates from this environment's own root are accepted: a Dev controller
-# cannot manage a Prod host (homelab-infra infrastructure/openbao/terraform/pki-loadbalancer.tf).
-remote_file client_ca do
-  source lb['client_ca_source'] || "#{lb['bao']}/v1/pki-loadbalancer-#{lb['environment']}/ca/pem"
-  mode '0644'
-  retries 3
-  retry_delay 10
-  verify { |path| ::File.read(path).include?('-----BEGIN CERTIFICATE-----') }
-  notifies :restart, 'service[dataplaneapi]'
-end
-
-homelab_loadbalancer_server_cert 'default' do
-  server "#{lb['bao']}/v1/pki/acme/directory"
-  domain "#{node['hostname']}.#{lb['domain']}"
-  listen address
-end
 
 homelab_loadbalancer_vip_guard lb['bgp']['vip_pool']
 
@@ -44,9 +42,7 @@ homelab_loadbalancer_haproxy 'default' do
   resolver lb['resolver']
 end
 
-# Ayatori ADR-0022: with converge the agent writes through a loopback listener, as
-# its own user, with a password generated here that never leaves the host.
-converge = lb['agent']['converge']
+# The agent writes through a loopback listener, as its own user.
 local_port = 5556
 local_password = '/etc/ayatori/lb-agent-dataplane.password'
 
@@ -59,21 +55,14 @@ homelab_loadbalancer_agent 'default' do
   neighbors lb['bgp']['neighbors'].to_h
   vip_pool lb['bgp']['vip_pool']
   metrics_address "#{address}:9641"
-  join lb['agent']['join']
+  join true
   graceful_restart_time lb['agent']['graceful_restart_time']
-  if converge
-    data_plane('url' => "http://127.0.0.1:#{local_port}", 'username' => 'lb-agent', 'passwordFile' => local_password)
-  end
+  data_plane('url' => "http://127.0.0.1:#{local_port}", 'username' => 'lb-agent', 'passwordFile' => local_password)
 end
 
 homelab_loadbalancer_dataplaneapi 'default' do
-  listen address
-  certificate certificate
-  key key
-  client_ca client_ca
-  password_hash lb['dataplaneapi']['password_hash']
   local_port local_port
-  local_password_file local_password if converge
+  local_password_file local_password
 end
 
 # gobgpd announced on Ayatori's behalf until 0.3.0. Left running beside the agent it
@@ -103,10 +92,4 @@ Dir.glob('/opt/gobgp-*').each do |path|
     recursive true
     action :delete
   end
-end
-
-# Restart target for the client CA above; the resource's own service lives in its
-# nested run context, which recipe-level notifications cannot reach.
-service 'dataplaneapi' do
-  action :nothing
 end
