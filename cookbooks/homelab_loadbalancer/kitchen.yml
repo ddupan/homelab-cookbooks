@@ -31,14 +31,6 @@ suites:
   - name: default
     attributes:
       homelab_loadbalancer:
-        environment: dev
-        # Never the real Bao: the renewal timer would register an ACME account and
-        # open an order if it ever fired inside a test container.
-        bao: https://bao.invalid:8200
-        client_ca_source: file:///etc/lb-test/client-ca.pem
-        dataplaneapi:
-          # openssl passwd -6 of the test-only password "test-only".
-          password_hash: '$6$OwCXPAJAHLh1AF7B$mwRxAs9Adub3bP22hUC8M/1smiqyjK5zWRUnI5bQFtYmF0mcxKD3TdGU1fB7v/9LftuCdsCe3w6wnoRCJjEHb1'
         # The fixture cookbook's stand-in release, not a real Ayatori one.
         agent:
           version: 0.0.0-test
