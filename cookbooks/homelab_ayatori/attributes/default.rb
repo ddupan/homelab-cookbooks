@@ -25,6 +25,13 @@ ay['node_agents'] = false
 # reports. Switched per environment together with the LB policy's agent.converge.
 ay['loadbalancer']['agent_convergence'] = false
 
+# Optional: people sign in with iam-login (OIDC) through structured authentication
+# ({issuer, audiences, admin_groups}); audiences are the client IDs whose ID tokens this
+# API accepts (one per environment, so a Dev token is refused by Prod). Users and groups
+# appear prefixed "oidc:"; admin_groups (AD groups) are bound to cluster-admin here, any
+# finer RBAC is the API's own. Empty = client certificates and service accounts only.
+ay['oidc'] = {}
+
 # Site endpoints: defaults the node policy may override.
 ay['openbao_address'] = 'https://bao.lab.ddupan.top:8200'
 ay['repository'] = 'https://git.ddupan.top/panxiao81/ayatori.git'

@@ -51,6 +51,24 @@ subjects:
 - kind: User
   apiGroup: rbac.authorization.k8s.io
   name: flux-kustomize-controller
+<% unless @oidc_admin_groups.empty? -%>
+---
+# 经 iam-login（OIDC）登录的管理员：AD 组带 oidc: 前缀（/etc/ayatori-apiserver/authentication.yaml）。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+<% @oidc_admin_groups.each do |group| -%>
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: <%= "oidc:#{group}".to_json %>
+<% end -%>
+<% end -%>
 ---
 # kube-state-metrics 只读 CRD 与需要导出状态的 CR。
 apiVersion: rbac.authorization.k8s.io/v1

@@ -19,6 +19,10 @@ textfile_dir = '/var/lib/prometheus/node-exporter' # homelab_base's node_exporte
 namespace = 'ayatori-system'
 loadbalancer = ay['loadbalancer']['address_pool']
 gitops = ay['gitops'].to_h.empty? ? nil : ay['gitops'].to_h
+oidc = ay['oidc'].to_h.empty? ? nil : ay['oidc'].to_h
+if oidc && (oidc['issuer'].to_s.empty? || Array(oidc['audiences']).empty?)
+  raise 'homelab_ayatori.oidc needs issuer and audiences'
+end
 
 package %w(podman openssl)
 
@@ -27,6 +31,39 @@ directory state do
 end
 
 # --- k0s -----------------------------------------------------------------------------
+
+# Structured authentication (Kubernetes AuthenticationConfiguration): people sign in with
+# iam-login. Outside /etc/k0s, which only root can read: kube-apiserver runs as its own
+# user. Nothing in it is secret. The apiserver reloads it on change; adding or removing
+# the flag restarts k0s through k0s.yaml.
+AUTHENTICATION_CONFIG = '/etc/ayatori-apiserver/authentication.yaml'.freeze
+directory ::File.dirname(AUTHENTICATION_CONFIG) do
+  mode '0755'
+  action oidc ? :create : :delete
+  recursive true
+end
+
+file AUTHENTICATION_CONFIG do
+  content(oidc && <<~YAML)
+    # Managed by Cinc (homelab_ayatori)
+    apiVersion: apiserver.config.k8s.io/v1
+    kind: AuthenticationConfiguration
+    jwt:
+      - issuer:
+          url: #{oidc['issuer'].to_json}
+          audiences: #{Array(oidc['audiences']).to_json}
+          audienceMatchPolicy: MatchAny
+        claimMappings:
+          username:
+            claim: preferred_username
+            prefix: "oidc:"
+          groups:
+            claim: groups
+            prefix: "oidc:"
+  YAML
+  mode '0644'
+  action oidc ? :create : :delete
+end
 
 homelab_ayatori_k0s 'default' do
   version ay['k0s']['version']
@@ -41,7 +78,7 @@ homelab_ayatori_k0s 'default' do
       api:
         address: #{api}
         sans: #{["#{node['hostname']}.lab.ddupan.top"].to_json}
-      controllerManager:
+#{oidc ? "        extraArgs:\n          authentication-config: #{AUTHENTICATION_CONFIG}\n" : ''}      controllerManager:
         extraArgs:
           # API-only 不运行 Pod：只保留 namespace 删除收尾，以及客户端证书（Ayatori ADR-0021）的
           # 签发与过期 bootstrap token、CSR 的清理。签发使用 k0s 的 CA。
@@ -108,7 +145,8 @@ template "#{state}/bootstrap.yaml" do
     loadbalancer: !loadbalancer.nil?,
     node_agents: ay['node_agents'],
     dns_api_key: ay['loadbalancer']['dns_api_key'].to_h,
-    gitops: gitops
+    gitops: gitops,
+    oidc_admin_groups: oidc ? Array(oidc['admin_groups']) : []
   )
 end
 
