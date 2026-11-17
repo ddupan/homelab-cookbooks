@@ -24,6 +24,51 @@ describe 'homelab_ayatori::default' do
       .with_content('address: 10.0.0.11')
   end
 
+  it 'accepts only client certificates and service accounts without OIDC' do
+    is_expected.to render_file('/etc/k0s/k0s.yaml').with_content { |c| expect(c).not_to include('authentication-config') }
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c| expect(c).not_to include('oidc-admins') }
+    is_expected.to delete_file('/etc/ayatori-apiserver/authentication.yaml')
+  end
+
+  context 'with OIDC' do
+    default_attributes['homelab_ayatori']['oidc'] = {
+      'issuer' => 'https://sso.example', 'audiences' => %w(ayatori-dev), 'admin_groups' => %w(platform-admins)
+    }
+
+    it 'makes the admin group cluster-admin' do
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+        binding = YAML.load_stream(c).compact.find { |d| d['metadata']['name'] == 'oidc-admins' }
+        expect(binding['roleRef']['name']).to eq('cluster-admin')
+        expect(binding['subjects']).to eq([{ 'kind' => 'Group', 'apiGroup' => 'rbac.authorization.k8s.io',
+                                             'name' => 'oidc:platform-admins' }])
+      }
+    end
+
+    it 'points the apiserver at a structured authentication config it can read' do
+      is_expected.to render_file('/etc/k0s/k0s.yaml')
+        .with_content("extraArgs:\n          authentication-config: /etc/ayatori-apiserver/authentication.yaml")
+      is_expected.to create_file('/etc/ayatori-apiserver/authentication.yaml').with(mode: '0644')
+      is_expected.to create_directory('/etc/ayatori-apiserver').with(mode: '0755')
+    end
+
+    it 'maps iam-login users and groups under the oidc: prefix for this environment only' do
+      config = YAML.safe_load(chef_run.file('/etc/ayatori-apiserver/authentication.yaml').content)
+      jwt = config['jwt'].first
+      expect(jwt['issuer']).to eq('url' => 'https://sso.example', 'audiences' => %w(ayatori-dev),
+                                  'audienceMatchPolicy' => 'MatchAny')
+      expect(jwt['claimMappings']).to eq('username' => { 'claim' => 'preferred_username', 'prefix' => 'oidc:' },
+                                         'groups' => { 'claim' => 'groups', 'prefix' => 'oidc:' })
+    end
+  end
+
+  context 'with OIDC but no audience' do
+    default_attributes['homelab_ayatori']['oidc'] = { 'issuer' => 'https://sso.example' }
+
+    it 'fails instead of accepting tokens for any client' do
+      expect { chef_run }.to raise_error(RuntimeError, /oidc needs issuer and audiences/)
+    end
+  end
+
   it 'keeps a declared hostaddr on the Instance' do
     is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
       expect(c).to include('POSTGRESQL_HOSTADDR: "10.0.0.1"')
