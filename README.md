@@ -9,9 +9,24 @@ policy lock 属于部署声明，放在 homelab-infra 的 `infrastructure/chef/`
 
 policy 从 Gitea 的 Chef registry 取 cookbook（`default_source :supermarket, 'https://git.ddupan.top/api/packages/panxiao81/chef/api/v1'`），
 按 cookbook 自己的版本锁定，不再按整个仓库的 git tag。合并到 main 后 `publish.yml` 把 registry
-里还没有的版本发上去。registry 的版本不可覆盖，所以**改了 cookbook 就要升它的 `version`**，
-PR 的 CI 会检查这一点。签名用 owner 的 registry 密钥（Gitea 用户设置 → Packages → Chef），
+里还没有的版本发上去。
+
+**版本号和 CHANGELOG 不手写。** 提交信息用 Conventional Commits，scope 写 cookbook 名
+（`feat(homelab_data): …`、`fix(homelab_base): …`，破坏性变更加 `!`）。`release.yml` 在每次合并后
+维护一个发布 PR（分支 `release/cookbooks`）：按上次改版本以来的提交为每个 cookbook 算下一个版本
+（1.0 前：`feat`/破坏性 → minor，`fix`/`perf`/`refactor`/`revert`/`chore(deps)` → patch，
+`docs`/`test`/`ci`/`chore` 不发版），改 `metadata.rb` 并在该 cookbook 的 `CHANGELOG.md` 前面加一节。
+**合并发布 PR 即发布**；平时的 PR 不要改 `version`。规则在 `.gitea/scripts/release.py`，
+PR 的 CI 会预览这次合并后的发布计划。签名用 owner 的 registry 密钥（Gitea 用户设置 → Packages → Chef），
 存在本仓库的 Actions secret `CHEF_CLIENT_KEY`。
+
+### 第三方软件版本
+
+cookbook 装的第三方软件（spire-agent、lego、etcd、dataplaneapi、k0s）在版本行上方带
+`# renovate: datasource=… depName=…`（值是下一行最后一个单引号字符串）。Renovate 每周一把
+新版本合成一个 `chore(deps)` PR；k0s 旁边写死的 `sha256` 要在 PR 里一起改，其余按上游 checksum
+清单校验。合并后进入发布 PR；发布后节点仍按 homelab-infra 里 policy 的 `= 版本` 运行，要在那边改
+版本、`cinc update` 并提交 lock 才会部署。
 
 ## 边界
 

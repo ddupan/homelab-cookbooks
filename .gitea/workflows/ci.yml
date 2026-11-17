@@ -51,28 +51,12 @@ jobs:
           echo "cookbooks=$json" >> "$GITHUB_OUTPUT"
           echo "testing: $json"
 
-      # Registry versions are immutable and publish.yml skips versions already there, so a
-      # changed cookbook without a version bump would merge but never reach any node.
-      - name: Changed cookbooks bump their version
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          SITE: https://git.ddupan.top/api/packages/panxiao81/chef
+      # PR 不再升 metadata.rb 的 version：release.yml 按 Conventional Commits 汇总成发布 PR。
+      # 这里测分类规则，并预览合并后这些提交会让哪些 cookbook 发什么版本。
+      - name: Release plan
         run: |
-          set -euo pipefail
-          [ -n "${BASE:-}" ] || exit 0
-          fail=0
-          for cb in $(git diff --name-only "$BASE"...HEAD | sed -n 's|^cookbooks/\([^/]*\)/.*|\1|p' | sort -u); do
-            [ -f "cookbooks/$cb/metadata.rb" ] || continue
-            version=$(sed -n "s/^version *['\"]\([^'\"]*\).*/\1/p" "cookbooks/$cb/metadata.rb")
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --retry 5 --retry-all-errors \
-              "$SITE/api/v1/cookbooks/$cb/versions/$version")
-            case "$code" in
-              200) echo "::error::$cb $version is already published; bump its version"; fail=1 ;;
-              404) echo "$cb $version is new" ;;
-              *) echo "::error::registry answered $code for $cb $version"; fail=1 ;;
-            esac
-          done
-          exit $fail
+          python3 .gitea/scripts/test_release.py
+          python3 .gitea/scripts/release.py
 
   test:
     needs: changes
