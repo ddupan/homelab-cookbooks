@@ -5,6 +5,7 @@ default['homelab_data']['pgbackrest_repository'] = false
 
 # etcd member (recipe homelab_data::etcd). `members` maps every member's name (= the
 # node's short hostname) to its address, this node included; the policy sets it.
+# renovate: datasource=github-releases depName=etcd-io/etcd
 default['homelab_data']['etcd']['version'] = '3.7.2'
 default['homelab_data']['etcd']['members'] = {}
 # Certificates are signed by Bao's existing pki/ roles homelab-etcd-*, logging in with

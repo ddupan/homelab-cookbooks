@@ -5,6 +5,7 @@
 # (this timer) use the registered account and need no secret at all.
 unified_mode true
 
+# renovate: datasource=github-releases depName=go-acme/lego
 property :lego_version, String, default: '5.3.1'
 property :server, String, required: true
 # The node's lab DNS name. Enrollment checks that it resolves to the node before

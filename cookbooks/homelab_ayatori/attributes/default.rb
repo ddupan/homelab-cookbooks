@@ -44,6 +44,7 @@ ay['backup']['dir'] = '/var/backups/ayatori' # an independent volume, mounted by
 ay['backup']['keep'] = 7
 
 # Third-party components, upgraded together after Dev validates them.
+# renovate: datasource=github-releases depName=k0sproject/k0s
 ay['k0s']['version'] = 'v1.36.4+k0s.1'
 ay['k0s']['sha256'] = '18c304d53cdd70095e99c6b859b269b4fef0bb84579d7e7185271a9135694a31'
 # API-only: apiserver, etcd, a kube-controller-manager with only the controllers listed
