@@ -41,6 +41,19 @@
       "prBodyNotes": [
         "k0s 旁边写死的 `sha256` 要在本 PR 里一起改。合并后进入发布 PR；节点要等 homelab-infra 的 policy 改 `= 版本` 并 `cinc update` 才会用上。"
       ]
+    },
+    {
+      "description": "HAProxy from haproxy.debian.net, pinned to the 3.4 LTS branch (the LB contract was verified against 3.4): patches within the branch only.",
+      "matchDatasources": [
+        "deb"
+      ],
+      "matchPackageNames": [
+        "haproxy"
+      ],
+      "registryUrls": [
+        "http://haproxy.debian.net?suite=trixie-backports-3.4&components=main&binaryArch=amd64"
+      ],
+      "allowedVersions": "/^3\\.4\\./"
     }
   ]
 }

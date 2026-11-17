@@ -23,7 +23,9 @@ describe 'homelab_loadbalancer::default' do
 
   it 'trusts the HAProxy repository by its fetched keyring, with no gpg import on the host' do
     expect(chef_run).to create_remote_file('/etc/apt/keyrings/haproxy.gpg')
-    expect(chef_run).to add_apt_repository('haproxy').with(key: nil, signed_by: '/etc/apt/keyrings/haproxy.gpg')
+    expect(chef_run).to add_apt_repository('haproxy').with(key: nil, signed_by: '/etc/apt/keyrings/haproxy.gpg',
+                                                           distribution: 'trixie-backports-3.4')
+    expect(chef_run).to install_apt_package('haproxy').with(version: '3.4.7-1~bpo13+1')
     expect(chef_run).not_to install_apt_package('gpg')
   end
 
