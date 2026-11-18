@@ -27,6 +27,7 @@ describe 'homelab_ayatori::default' do
   it 'accepts only client certificates and service accounts without OIDC' do
     is_expected.to render_file('/etc/k0s/k0s.yaml').with_content { |c| expect(c).not_to include('authentication-config') }
     is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c| expect(c).not_to include('oidc-admins') }
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c| expect(c).not_to include('ayatori-login') }
     is_expected.to delete_file('/etc/ayatori-apiserver/authentication.yaml')
   end
 
@@ -34,6 +35,12 @@ describe 'homelab_ayatori::default' do
     default_attributes['homelab_ayatori']['oidc'] = {
       'issuer' => 'https://sso.example', 'audiences' => %w(ayatori-dev), 'admin_groups' => %w(platform-admins)
     }
+
+    before do
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with('/var/lib/k0s/pki/ca.crt')
+                                   .and_return("-----BEGIN CERTIFICATE-----\nk0s\n-----END CERTIFICATE-----\n")
+    end
 
     it 'makes the admin group cluster-admin' do
       is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
@@ -49,6 +56,25 @@ describe 'homelab_ayatori::default' do
         .with_content("extraArgs:\n          authentication-config: /etc/ayatori-apiserver/authentication.yaml")
       is_expected.to create_file('/etc/ayatori-apiserver/authentication.yaml').with(mode: '0644')
       is_expected.to create_directory('/etc/ayatori-apiserver').with(mode: '0755')
+    end
+
+    it 'lets anonymous requests read only the login discovery ConfigMap' do
+      config = YAML.safe_load(chef_run.file('/etc/ayatori-apiserver/authentication.yaml').content)
+      discovery = { 'path' => '/api/v1/namespaces/kube-public/configmaps/ayatori-login' }
+      expect(config['anonymous']).to eq('enabled' => true, 'conditions' => [discovery])
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+        docs = YAML.load_stream(c).compact.select { |d| d['metadata']['name'] == 'ayatori-login' }
+        expect(docs.map { |d| d['metadata']['namespace'] }.uniq).to eq(%w(kube-public))
+        login = docs.find { |d| d['kind'] == 'ConfigMap' }
+        expect(login['data']).to eq('issuer' => 'https://sso.example', 'clientID' => 'ayatori-dev',
+                                    'ca.crt' => "-----BEGIN CERTIFICATE-----\nk0s\n-----END CERTIFICATE-----\n")
+        role = docs.find { |d| d['kind'] == 'Role' }
+        expect(role['rules']).to eq([{ 'apiGroups' => [''], 'resources' => %w(configmaps),
+                                       'resourceNames' => %w(ayatori-login), 'verbs' => %w(get) }])
+        binding = docs.find { |d| d['kind'] == 'RoleBinding' }
+        expect(binding['subjects']).to eq([{ 'kind' => 'Group', 'apiGroup' => 'rbac.authorization.k8s.io',
+                                             'name' => 'system:unauthenticated' }])
+      }
     end
 
     it 'maps iam-login users and groups under the oidc: prefix for this environment only' do
