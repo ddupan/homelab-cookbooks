@@ -41,22 +41,23 @@ describe file('/var/lib/prometheus/node-exporter/ayatori_certificates.prom') do
 end
 
 # `ayatori config add` (Ayatori ADR-0027): before signing in, anonymous requests read the login
-# ConfigMap and nothing else. --kubeconfig /dev/null keeps k0s kubectl from using its admin kubeconfig.
-anonymous = '/usr/local/bin/k0s kubectl --kubeconfig /dev/null --server https://127.0.0.1:6443 --insecure-skip-tls-verify'
+# ConfigMap and nothing else. curl without credentials, verified against k0s's CA.
+anonymous = 'curl -s --cacert /var/lib/k0s/pki/ca.crt -o /dev/null -w "%{http_code}" https://127.0.0.1:6443'
+login = '/api/v1/namespaces/kube-public/configmaps/ayatori-login'
 
-describe command("#{anonymous} -n kube-public get configmap ayatori-login -o jsonpath='{.data.clientID} {.data.issuer}'") do
-  its('exit_status') { should eq 0 }
-  its('stdout') { should eq 'ayatori-kitchen https://sso.ddupan.top' }
+describe command("#{anonymous}#{login}") do
+  its('stdout') { should eq '200' }
 end
 
-describe command("#{anonymous} -n kube-public get configmap ayatori-login -o jsonpath='{.data.ca\\.crt}'") do
-  its('stdout') { should eq file('/var/lib/k0s/pki/ca.crt').content }
+describe json(command: "curl -s --cacert /var/lib/k0s/pki/ca.crt https://127.0.0.1:6443#{login}") do
+  its(%w(data clientID)) { should eq 'ayatori-kitchen' }
+  its(%w(data issuer)) { should eq 'https://sso.ddupan.top' }
+  its(['data', 'ca.crt']) { should eq file('/var/lib/k0s/pki/ca.crt').content }
 end
 
-describe command("#{anonymous} -n kube-public get configmaps") do
-  its('exit_status') { should_not eq 0 }
-end
-
-describe command("#{anonymous} -n kube-system get configmap ayatori-login") do
-  its('exit_status') { should_not eq 0 }
+# Anything else is unauthenticated: listing the namespace, the same name elsewhere, discovery.
+%w(/api/v1/namespaces/kube-public/configmaps /api/v1/namespaces/kube-system/configmaps/ayatori-login /api).each do |path|
+  describe command("#{anonymous}#{path}") do
+    its('stdout') { should eq '401' }
+  end
 end

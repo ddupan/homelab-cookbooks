@@ -11,7 +11,8 @@ end
 
 directory '/etc/ayatori-test'
 
-package 'openssl'
+# curl: the suite sends anonymous requests to the apiserver (kubectl would prompt for a user).
+package %w(openssl curl)
 
 execute 'test CA' do
   command 'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 ' \
