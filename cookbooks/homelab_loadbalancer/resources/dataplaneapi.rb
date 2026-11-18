@@ -4,6 +4,7 @@
 # agent alone. Nothing listens on the node address: the control plane never connects.
 unified_mode true
 
+# renovate: datasource=github-releases depName=haproxytech/dataplaneapi
 property :version, String, default: '3.4.3'
 property :local_port, Integer, default: 5556
 property :local_user, String, default: 'lb-agent'

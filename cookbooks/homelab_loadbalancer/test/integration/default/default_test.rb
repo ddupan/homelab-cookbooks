@@ -37,15 +37,27 @@ describe command(<<~SH) do
   curl -sf #{auth} -H 'Content-Type: application/json' -X POST \\
     "#{api}/configuration/frontends?transaction_id=$tx&full_section=true" \\
     -d '{"name":"lb_test_6443","mode":"tcp","default_backend":"lb_test_6443_backend","binds":{"vip":{"name":"vip","address":"10.62.0.9","port":6443}}}' >/dev/null
-  curl -sf #{auth} -X PUT "#{api}/transactions/$tx" >/dev/null
+  # Wait for this commit's reload, by the id the commit returns. The reload list also holds
+  # earlier reloads and the API delays this one (reload_delay), so "the last entry
+  # succeeded" could be an older reload while this change is not loaded yet.
+  rid=$(curl -sf #{auth} -X PUT -D - -o /dev/null "#{api}/transactions/$tx" | tr -d '\\r' | sed -n 's/^[Rr]eload-[Ii][Dd]: //p')
   for i in $(seq 30); do
-    status=$(curl -sf #{auth} #{api}/reloads | grep -o '"status":"[a-z_]*"' | tail -1)
+    status=$(curl -sf #{auth} "#{api}/reloads/$rid" | grep -o '"status":"[a-z_]*"')
     case "$status" in *succeeded*) break ;; *failed*) echo "$status"; exit 1 ;; esac
     sleep 1
   done
   echo "$status"
+  # The reload returning is not the new worker having bound the VIP yet.
+  for i in $(seq 30); do
+    ss -Hltn 'sport = :6443' | grep -q '10.62.0.9:6443' && exit 0
+    sleep 1
+  done
+  echo 'VIP NOT BOUND'
+  journalctl -u haproxy --no-pager -n 30 -o cat
 SH
   its('stdout') { should include 'succeeded' }
+  # On failure this prints the whole stdout, haproxy's journal included.
+  its('stdout') { should_not include 'VIP NOT BOUND' }
   its('exit_status') { should eq 0 }
 end
 

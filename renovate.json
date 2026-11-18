@@ -1,0 +1,59 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "description": "Versions of software the cookbooks install (attributes and resource property defaults): put `# renovate: datasource=<ds> depName=<name>` on the line above; the value is the last single-quoted string on the next line (attribute keys are quoted too).",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^cookbooks/[^/]+/(attributes|resources|recipes)/.+\\.rb$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n[^\\n]*'(?<currentValue>[^'\\n]+)'"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Bare version values (3.7.2); the recipes add the tag's `v` themselves, so strip it. Values that keep the v (k0s) are left alone.",
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchCurrentValue": "/^\\d/",
+      "extractVersion": "^v(?<version>.+)$"
+    },
+    {
+      "description": "Third-party versions the cookbooks install: one weekly PR, so a week of upstream releases becomes one patch release per cookbook (release.yml counts chore(deps) as patch). k0s pins a sha256 next to its version; nothing else needs a second edit.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "cookbook third-party",
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps",
+      "prBodyNotes": [
+        "k0s 旁边写死的 `sha256` 要在本 PR 里一起改。合并后进入发布 PR；节点要等 homelab-infra 的 policy 改 `= 版本` 并 `cinc update` 才会用上。"
+      ]
+    },
+    {
+      "description": "HAProxy from haproxy.debian.net, pinned to the 3.4 LTS branch (the LB contract was verified against 3.4): patches within the branch only.",
+      "matchDatasources": [
+        "deb"
+      ],
+      "matchPackageNames": [
+        "haproxy"
+      ],
+      "registryUrls": [
+        "http://haproxy.debian.net?suite=trixie-backports-3.4&components=main&binaryArch=amd64"
+      ],
+      "allowedVersions": "/^3\\.4\\./"
+    }
+  ]
+}

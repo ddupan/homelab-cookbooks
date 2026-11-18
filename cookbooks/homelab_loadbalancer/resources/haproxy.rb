@@ -5,7 +5,13 @@
 # template would fight the API on each converge. It is only created when missing.
 unified_mode true
 
-property :version, String, default: '3.4'
+# The exact package, not just the branch: apt_package :install never upgrades an installed
+# package, so a branch-only pin left hosts on whatever 3.4.x they first got, and nothing
+# reported newer patches. Renovate bumps this (deb, haproxy.debian.net); the branch below is
+# derived from it. On upgrade the package reloads haproxy (postinst `invoke-rc.d reload`),
+# it does not restart it, so converging both LB hosts at once is safe.
+# renovate: datasource=deb depName=haproxy
+property :version, String, default: '3.4.7-1~bpo13+1'
 # LAN resolver for DNS endpoints; Ayatori refers to it as --loadbalancer-resolvers=lan.
 property :resolver, String, required: true
 # Bounds how long the old worker keeps serving connections after a reload, and with
@@ -13,6 +19,7 @@ property :resolver, String, required: true
 property :hard_stop_after, String, default: '30m'
 
 action :install do
+  branch = new_resource.version[/\A\d+\.\d+/]
   # Debian 13 ships 3.0; the LB contract (Data Plane API v3.4, dynamic servers in
   # maint, frontend/backend name rules) was verified against 3.4.
   # Upstream publishes a binary keyring, so it is fetched as-is and handed to apt via
@@ -31,19 +38,26 @@ action :install do
 
   apt_repository 'haproxy' do
     uri 'http://haproxy.debian.net'
-    distribution "trixie-backports-#{new_resource.version}"
+    distribution "trixie-backports-#{branch}"
     components ['main']
     key nil
     signed_by '/etc/apt/keyrings/haproxy.gpg'
   end
 
   apt_preference 'haproxy' do
-    pin "version #{new_resource.version}.*"
+    pin "version #{branch}.*"
     pin_priority '1001'
   end
 
   # socat: the reload saves server state through the admin socket first.
-  apt_package %w(haproxy socat) do
+  apt_package 'haproxy' do
+    version new_resource.version
+    options '--no-install-recommends'
+    retries 3
+    retry_delay 5
+  end
+
+  apt_package 'socat' do
     options '--no-install-recommends'
     retries 3
     retry_delay 5

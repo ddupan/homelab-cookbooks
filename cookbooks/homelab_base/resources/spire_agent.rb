@@ -3,6 +3,7 @@
 # fixed path; this resource never touches that key material.
 unified_mode true
 
+# renovate: datasource=github-releases depName=spiffe/spire
 property :version, String, default: '1.15.3'
 property :server_address, String, required: true
 property :trust_domain, String, required: true

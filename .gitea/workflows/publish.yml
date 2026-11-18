@@ -2,8 +2,8 @@ name: publish
 
 # Publishes every cookbook whose metadata version is not yet in the Gitea Chef registry.
 # Policies in homelab-infra resolve cookbooks from that registry, so a cookbook version is
-# what they pin, not a repo-wide git tag. Versions are immutable there: ci.yml fails a PR
-# that changes a cookbook without bumping it, so nothing merged is left unpublished.
+# what they pin, not a repo-wide git tag. Versions are immutable there; they are bumped
+# only by the release PR (release.yml), so merging that PR is what publishes.
 on:
   push:
     branches: [main]
