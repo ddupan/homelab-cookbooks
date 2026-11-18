@@ -69,6 +69,45 @@ subjects:
   name: <%= "oidc:#{group}".to_json %>
 <% end -%>
 <% end -%>
+<% if @login -%>
+---
+# `ayatori config add` 的发现信息（Ayatori ADR-0027）：登录用的 issuer、client 与要固定的集群 CA。
+# 未登录时就要读，只对这一个对象开放匿名 get（authentication.yaml 的 anonymous.conditions 另有一道限制）。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ayatori-login
+  namespace: kube-public
+data:
+  issuer: <%= @login['issuer'].to_json %>
+  clientID: <%= @login['client_id'].to_json %>
+  ca.crt: <%= ::File.read(@login_ca).to_json %>
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ayatori-login
+  namespace: kube-public
+rules:
+- apiGroups: [""]
+  resources: [configmaps]
+  resourceNames: [ayatori-login]
+  verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ayatori-login
+  namespace: kube-public
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ayatori-login
+subjects:
+- kind: Group
+  apiGroup: rbac.authorization.k8s.io
+  name: system:unauthenticated
+<% end -%>
 ---
 # kube-state-metrics 只读 CRD 与需要导出状态的 CR。
 apiVersion: rbac.authorization.k8s.io/v1

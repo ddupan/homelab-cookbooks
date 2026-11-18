@@ -23,6 +23,9 @@ oidc = ay['oidc'].to_h.empty? ? nil : ay['oidc'].to_h
 if oidc && (oidc['issuer'].to_s.empty? || Array(oidc['audiences']).empty?)
   raise 'homelab_ayatori.oidc needs issuer and audiences'
 end
+# `ayatori config add` reads where to sign in from this ConfigMap before it has a token
+# (Ayatori ADR-0027): the only path anonymous requests may use.
+LOGIN_DISCOVERY = '/api/v1/namespaces/kube-public/configmaps/ayatori-login'.freeze
 
 package %w(podman openssl)
 
@@ -35,7 +38,8 @@ end
 # Structured authentication (Kubernetes AuthenticationConfiguration): people sign in with
 # iam-login. Outside /etc/k0s, which only root can read: kube-apiserver runs as its own
 # user. Nothing in it is secret. The apiserver reloads it on change; adding or removing
-# the flag restarts k0s through k0s.yaml.
+# the flag restarts k0s through k0s.yaml. Its anonymous section also makes k0s drop its
+# --anonymous-auth=false default, which kube-apiserver refuses alongside the section.
 AUTHENTICATION_CONFIG = '/etc/ayatori-apiserver/authentication.yaml'.freeze
 directory ::File.dirname(AUTHENTICATION_CONFIG) do
   mode '0755'
@@ -60,6 +64,10 @@ file AUTHENTICATION_CONFIG do
           groups:
             claim: groups
             prefix: "oidc:"
+    anonymous:
+      enabled: true
+      conditions:
+        - path: #{LOGIN_DISCOVERY}
   YAML
   mode '0644'
   action oidc ? :create : :delete
@@ -146,7 +154,12 @@ template "#{state}/bootstrap.yaml" do
     node_agents: ay['node_agents'],
     dns_api_key: ay['loadbalancer']['dns_api_key'].to_h,
     gitops: gitops,
-    oidc_admin_groups: oidc ? Array(oidc['admin_groups']) : []
+    oidc_admin_groups: oidc ? Array(oidc['admin_groups']) : [],
+    # The CLI's client is the environment's own audience (iam-login client ayatori-<env>).
+    login: oidc && { 'issuer' => oidc['issuer'], 'client_id' => Array(oidc['audiences']).first },
+    # k0s's CA, which the CLI pins after the user confirms its fingerprint. The template reads
+    # it while rendering: homelab_ayatori_k0s has waited for the API, so k0s has generated it.
+    login_ca: '/var/lib/k0s/pki/ca.crt'
   )
 end
 

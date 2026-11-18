@@ -39,3 +39,25 @@ end
 describe file('/var/lib/prometheus/node-exporter/ayatori_certificates.prom') do
   its('content') { should match(/identity="flux-kustomize-controller"} \d+/) }
 end
+
+# `ayatori config add` (Ayatori ADR-0027): before signing in, anonymous requests read the login
+# ConfigMap and nothing else. curl without credentials, verified against k0s's CA.
+anonymous = 'curl -s --cacert /var/lib/k0s/pki/ca.crt -o /dev/null -w "%{http_code}" https://127.0.0.1:6443'
+login = '/api/v1/namespaces/kube-public/configmaps/ayatori-login'
+
+describe command("#{anonymous}#{login}") do
+  its('stdout') { should eq '200' }
+end
+
+describe json(command: "curl -s --cacert /var/lib/k0s/pki/ca.crt https://127.0.0.1:6443#{login}") do
+  its(%w(data clientID)) { should eq 'ayatori-kitchen' }
+  its(%w(data issuer)) { should eq 'https://sso.ddupan.top' }
+  its(['data', 'ca.crt']) { should eq file('/var/lib/k0s/pki/ca.crt').content }
+end
+
+# Anything else is unauthenticated: listing the namespace, the same name elsewhere, discovery.
+%w(/api/v1/namespaces/kube-public/configmaps /api/v1/namespaces/kube-system/configmaps/ayatori-login /api).each do |path|
+  describe command("#{anonymous}#{path}") do
+    its('stdout') { should eq '401' }
+  end
+end

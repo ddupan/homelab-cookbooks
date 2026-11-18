@@ -44,3 +44,8 @@ suites:
           hostaddr: 127.0.0.1
           port: 5432
         postgresql_ca_source: file:///etc/ayatori-test/ca.pem
+        # The apiserver need not reach the issuer: the suite checks the anonymous discovery path.
+        oidc:
+          issuer: https://sso.ddupan.top
+          audiences: [ayatori-kitchen]
+          admin_groups: [platform-admins]
