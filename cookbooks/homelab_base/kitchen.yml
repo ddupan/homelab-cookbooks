@@ -33,3 +33,8 @@ platforms:
 
 suites:
   - name: default
+    attributes:
+      homelab_base:
+        # The fixture cookbook (base_test) serves Bao's two public documents from files: Kitchen
+        # must not depend on the live Bao (and GitHub-hosted runners cannot reach it).
+        bao: file:///var/tmp/fake-bao

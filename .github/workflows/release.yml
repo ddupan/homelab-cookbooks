@@ -1,0 +1,73 @@
+name: release
+
+# Keeps one release PR (branch release/cookbooks) up to date with every cookbook that has
+# releasable commits since its last version change (.github/scripts/release.py): it bumps
+# metadata.rb and prepends that cookbook's CHANGELOG.md. Merging it is the release:
+# publish.yml then pushes the new versions to the registry. Feature PRs no longer bump
+# versions, so a week of merges becomes one release per cookbook instead of one per PR.
+#
+# The job token pushes the branch and opens the PR (needs "Allow GitHub Actions to create and
+# approve pull requests" in the repository's Actions settings). GitHub does not start workflows for
+# events made with that token, so the release PR gets no CI; it only changes version lines and
+# changelogs, and every commit in it already passed CI on its own PR.
+on:
+  push:
+    branches: [main]
+    paths: ['cookbooks/**']
+  workflow_dispatch:
+
+concurrency: release
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-24.04
+    env:
+      BRANCH: release/cookbooks
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # release.py walks history back to each version change
+
+      - name: Compute releases
+        run: python3 .github/scripts/release.py --write --summary "$RUNNER_TEMP/summary.md"
+
+      - name: Open or update the release PR
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+
+          if [ ! -s "$RUNNER_TEMP/summary.md" ]; then
+            # Nothing pending (e.g. the release PR was just merged); drop a stale one.
+            if [ -n "$existing" ]; then
+              gh pr close "$existing" >/dev/null
+              echo "closed stale release PR #$existing"
+            fi
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
+          # add -A: a cookbook's first CHANGELOG.md is a new file, which commit -a would skip.
+          git add -A cookbooks
+          git commit -qm 'chore(release): 发布 cookbook'
+          # Rebuilt from main on every run, so force is expected.
+          git push -qf origin "HEAD:refs/heads/$BRANCH"
+
+          { echo '合并即发布：publish.yml 把下列版本推到 registry。节点仍按 homelab-infra 的 policy 固定版本运行，'
+            echo '要用新版本需在那边改 `= 版本` 并 `cinc update`。'
+            echo
+            cat "$RUNNER_TEMP/summary.md"; } > "$RUNNER_TEMP/body.md"
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --body-file "$RUNNER_TEMP/body.md" >/dev/null
+            echo "updated release PR #$existing"
+          else
+            gh pr create --head "$BRANCH" --base main --title 'chore(release): 发布 cookbook' \
+              --body-file "$RUNNER_TEMP/body.md" >/dev/null
+            echo "opened release PR"
+          fi

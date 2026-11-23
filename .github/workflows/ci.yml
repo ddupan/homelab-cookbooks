@@ -6,9 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   changes:
-    runs-on: [self-hosted, pod]
+    runs-on: ubuntu-24.04
     outputs:
       cookbooks: ${{ steps.pick.outputs.cookbooks }}
     steps:
@@ -28,7 +31,7 @@ jobs:
             changed=$all
           else
             files=$(git diff --name-only "$BASE"...HEAD)
-            if printf '%s\n' "$files" | grep -q '^\.gitea/'; then
+            if printf '%s\n' "$files" | grep -q '^\.github/'; then
               changed=$all
             else
               changed=$(printf '%s\n' "$files" | sed -n 's|^cookbooks/\([^/]*\)/.*|\1|p' | sort -u)
@@ -55,13 +58,16 @@ jobs:
       # 这里测分类规则，并预览合并后这些提交会让哪些 cookbook 发什么版本。
       - name: Release plan
         run: |
-          python3 .gitea/scripts/test_release.py
-          python3 .gitea/scripts/release.py
+          python3 .github/scripts/test_release.py
+          python3 .github/scripts/release.py
 
   test:
     needs: changes
     if: needs.changes.outputs.cookbooks != '[]'
-    runs-on: [self-hosted, pod]
+    # GitHub-hosted, except homelab_ayatori: its Kitchen suite runs the ayatori-manager release image,
+    # which is published only to the LAN zot for now. When ayatori publishes to ghcr, point the suite
+    # there and drop this condition and the Nexus step.
+    runs-on: ${{ matrix.cookbook == 'homelab_ayatori' && 'homelab' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
       matrix:
@@ -71,11 +77,14 @@ jobs:
       WORKSTATION: cincproject/workstation:26.3.0
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      # Docker Hub rate-limits anonymous pulls per egress IP, and every Pod runner
-      # starts with an empty image store; all images come through Nexus instead.
+      # On the homelab runner images come through the LAN Nexus (Docker Hub proxy and the group the
+      # ayatori suite needs for ghcr.io/registry.k8s.io). GitHub-hosted runners pull directly.
       - id: nexus
-        uses: https://git.ddupan.top/panxiao81/ci-actions/setup-nexus@v1
+        if: matrix.cookbook == 'homelab_ayatori'
+        uses: ddupan/ci-actions/setup-nexus@v1
         with:
           nexus-url: https://nexus.lab.ddupan.top
           oci: 'true'
@@ -86,16 +95,21 @@ jobs:
           REGISTRY: ${{ steps.nexus.outputs.oci-public }}
         run: |
           registry="${REGISTRY#https://}"
-          echo "DOKKEN_REGISTRY=$registry" >> "$GITHUB_ENV"
-          echo "WORKSTATION=$registry/$WORKSTATION" >> "$GITHUB_ENV"
+          prefix=${registry:+$registry/}
+          if [ -n "$registry" ]; then
+            echo "DOKKEN_REGISTRY=$registry" >> "$GITHUB_ENV"
+            echo "WORKSTATION=$prefix$WORKSTATION" >> "$GITHUB_ENV"
+          fi
           for image in "$WORKSTATION" cincproject/cinc:19 \
                        dokken/ubuntu-24.04 dokken/debian-12 dokken/debian-13; do
-            for i in 1 2 3 4 5; do docker pull -q "$registry/$image" && break; sleep 15; done
+            for i in 1 2 3 4 5; do docker pull -q "$prefix$image" && break; sleep 15; done
           done
-          # kitchen-dokken builds its data image FROM <registry>/almalinux:9 without
-          # pulling; an official image is library/<name> behind the proxy.
-          for i in 1 2 3 4 5; do docker pull -q "$registry/library/almalinux:9" && break; sleep 15; done
-          docker tag "$registry/library/almalinux:9" "$registry/almalinux:9"
+          # kitchen-dokken builds its data image FROM <registry>/almalinux:9 without pulling; behind
+          # the proxy an official image is library/<name>.
+          if [ -n "$registry" ]; then
+            for i in 1 2 3 4 5; do docker pull -q "$registry/library/almalinux:9" && break; sleep 15; done
+            docker tag "$registry/library/almalinux:9" "$registry/almalinux:9"
+          fi
 
       # Cookstyle + ChefSpec first: seconds, and a failure here skips Kitchen.
       # Kitchen then converges twice per platform (second run must update nothing)
@@ -103,6 +117,7 @@ jobs:
       # reach the dokken bridge, which a default-bridge container cannot.
       # All of cookbooks/ is mounted: a Policyfile may take a sibling by path.
       # test/unit holds Python tests for scripts a cookbook ships (homelab_data's collector).
+      # `-e DOKKEN_REGISTRY` passes it only when set (homelab runner).
       - name: Lint, unit, integration
         run: |
           docker run --rm --network host \
