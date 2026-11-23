@@ -10,11 +10,11 @@ policy lock 属于部署声明，放在 homelab-infra 的 `infrastructure/chef/`
 policy 从 Chef registry 取 cookbook，按 cookbook 自己的版本锁定，不再按整个仓库的 git tag。
 合并到 main 后 `publish.yml` 把 registry 里还没有的版本发上去。
 
-registry 正从 Gitea（`https://git.ddupan.top/api/packages/panxiao81/chef/api/v1`）迁到 SeaweedFS
-上的静态 supermarket（`https://s3.lab.ddupan.top/chef-supermarket`）：一个 `universe` JSON 加每个
-版本一个 tarball，Policyfile 的 `:supermarket` 源只读这两样。`.gitea/scripts/publish.py` 负责打包和
-上传（只用标准库，凭据由 OpenBao 角色 `ci-chef-supermarket-publisher` 发放）；已发布的版本不会被覆盖。
-过渡期两边都发，所有 policy 切到 S3 后删掉 Gitea 那一步。
+registry 是 SeaweedFS 上的静态 supermarket（`https://s3.lab.ddupan.top/chef-supermarket`）：一个
+`universe` JSON 加每个版本一个 tarball，Policyfile 的 `:supermarket` 源只读这两样。
+`.gitea/scripts/publish.py` 负责打包和上传（只用标准库，凭据由 OpenBao 角色
+`ci-chef-supermarket-publisher` 发放）；已发布的版本不会被覆盖。Gitea 的 Chef registry 已停用，
+不再发布，旧版本留在那里只作历史。
 
 **版本号和 CHANGELOG 不手写。** 提交信息用 Conventional Commits，scope 写 cookbook 名
 （`feat(homelab_data): …`、`fix(homelab_base): …`，破坏性变更加 `!`）。`release.yml` 在每次合并后
@@ -22,8 +22,7 @@ registry 正从 Gitea（`https://git.ddupan.top/api/packages/panxiao81/chef/api/
 （1.0 前：`feat`/破坏性 → minor，`fix`/`perf`/`refactor`/`revert`/`chore(deps)` → patch，
 `docs`/`test`/`ci`/`chore` 不发版），改 `metadata.rb` 并在该 cookbook 的 `CHANGELOG.md` 前面加一节。
 **合并发布 PR 即发布**；平时的 PR 不要改 `version`。规则在 `.gitea/scripts/release.py`，
-PR 的 CI 会预览这次合并后的发布计划。签名用 owner 的 registry 密钥（Gitea 用户设置 → Packages → Chef），
-存在本仓库的 Actions secret `CHEF_CLIENT_KEY`。
+PR 的 CI 会预览这次合并后的发布计划。
 
 ### 第三方软件版本
 
