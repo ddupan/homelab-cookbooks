@@ -1,8 +1,9 @@
 name: publish
 
-# Publishes every cookbook whose metadata version is not yet in the Gitea Chef registry.
-# Policies in homelab-infra resolve cookbooks from that registry, so a cookbook version is
-# what they pin, not a repo-wide git tag. Versions are immutable there; they are bumped
+# Publishes every cookbook whose metadata version is not yet published. Policies in homelab-infra
+# resolve cookbooks from the registry, so a cookbook version is what they pin, not a repo-wide git
+# tag. The registry is moving from Gitea's Chef registry to a static supermarket in S3
+# (.gitea/scripts/publish.py); until every policy points at S3, both are published. Versions are immutable there; they are bumped
 # only by the release PR (release.yml), so merging that PR is what publishes.
 on:
   push:
@@ -13,6 +14,8 @@ on:
 concurrency: publish
 
 jobs:
+  # The job key is part of the SPIFFE ID (…/homelab-cookbooks/publish) that OpenBao role
+  # ci-chef-supermarket-publisher accepts; do not rename it.
   publish:
     runs-on: [self-hosted, pod]
     env:
@@ -57,3 +60,15 @@ jobs:
                   -u panxiao81 -k /tmp/key.pem --yes
                 echo "$cb $version published"
               done'
+
+      - uses: https://git.ddupan.top/panxiao81/ci-actions/spiffe-openbao-login@v1
+        with:
+          role: ci-chef-supermarket-publisher
+
+      - name: Publish new versions to the static supermarket
+        env:
+          S3_URL: https://s3.lab.ddupan.top/chef-supermarket
+          BAO_S3_SECRET: k8s/chef-supermarket-s3-publisher
+        run: |
+          docker run --rm -e S3_URL -e BAO_S3_SECRET -e BAO_ADDR -e BAO_TOKEN -e HOME=/tmp \
+            -v "$PWD:/repo:ro" "$WORKSTATION" python3 /repo/.gitea/scripts/publish.py /repo/cookbooks
