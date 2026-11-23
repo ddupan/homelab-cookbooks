@@ -12,7 +12,7 @@ policy 从 Chef registry 取 cookbook，按 cookbook 自己的版本锁定，不
 
 registry 是 SeaweedFS 上的静态 supermarket（`https://s3.lab.ddupan.top/chef-supermarket`）：一个
 `universe` JSON 加每个版本一个 tarball，Policyfile 的 `:supermarket` 源只读这两样。
-`.gitea/scripts/publish.py` 负责打包和上传（只用标准库，凭据由 OpenBao 角色
+`.github/scripts/publish.py` 负责打包和上传（只用标准库，凭据由 OpenBao 角色
 `ci-chef-supermarket-publisher` 发放）；已发布的版本不会被覆盖。Gitea 的 Chef registry 已停用，
 不再发布，旧版本留在那里只作历史。
 
@@ -21,7 +21,7 @@ registry 是 SeaweedFS 上的静态 supermarket（`https://s3.lab.ddupan.top/che
 维护一个发布 PR（分支 `release/cookbooks`）：按上次改版本以来的提交为每个 cookbook 算下一个版本
 （1.0 前：`feat`/破坏性 → minor，`fix`/`perf`/`refactor`/`revert`/`chore(deps)` → patch，
 `docs`/`test`/`ci`/`chore` 不发版），改 `metadata.rb` 并在该 cookbook 的 `CHANGELOG.md` 前面加一节。
-**合并发布 PR 即发布**；平时的 PR 不要改 `version`。规则在 `.gitea/scripts/release.py`，
+**合并发布 PR 即发布**；平时的 PR 不要改 `version`。规则在 `.github/scripts/release.py`，
 PR 的 CI 会预览这次合并后的发布计划。
 
 ### 第三方软件版本
@@ -63,8 +63,12 @@ docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
 挂载整个 `cookbooks/`：Policyfile 会按路径引用同级 cookbook（homelab_loadbalancer 依赖 homelab_base）。
 
 Docker Hub 对匿名拉取按出口 IP 限流，lab 共用一个出口。被限流时加
-`-e DOKKEN_REGISTRY=nexus.lab.ddupan.top/oci-public`，Kitchen 的所有镜像都改走 Nexus 代理
-（CI 一直这样做）。
+`-e DOKKEN_REGISTRY=nexus.lab.ddupan.top/oci-public`，Kitchen 的所有镜像都改走 Nexus 代理。
+
+CI（GitHub Actions）在 GitHub 托管 runner 上直接拉镜像；只有 `homelab_ayatori` 在 homelab ARC runner
+（`runs-on: homelab`）上经 Nexus 跑，因为它的 Kitchen 用的 ayatori-manager 发布镜像目前只在内网 zot。
+ayatori 改为发布到 ghcr 后，把该 suite 指过去并去掉这个例外。发布（publish.yml）在 homelab runner 上，
+以 `spiffe://ddupan.top/ci/github/ddupan/homelab-cookbooks/publish` 登录 OpenBao。
 
 ## Cookbooks
 

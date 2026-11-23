@@ -1,4 +1,4 @@
-"""python3 .gitea/scripts/test_release.py"""
+"""python3 .github/scripts/test_release.py"""
 from release import bump, classify
 
 # Real subjects from this repo's history.

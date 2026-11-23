@@ -1,29 +1,37 @@
 name: publish
 
 # Publishes every cookbook whose metadata version is not yet in the static supermarket in S3
-# (.gitea/scripts/publish.py). Policies in homelab-infra resolve cookbooks from it, so a cookbook
+# (.github/scripts/publish.py). Policies in homelab-infra resolve cookbooks from it, so a cookbook
 # version is what they pin, not a repo-wide git tag. Versions are immutable there; they are bumped
 # only by the release PR (release.yml), so merging that PR is what publishes.
+# Push only: the publisher identity's SPIRE entry matches push events on main. Retry with "Re-run jobs".
 on:
   push:
     branches: [main]
     paths: ['cookbooks/**']
-  workflow_dispatch:
 
 concurrency: publish
 
+permissions:
+  contents: read
+
 jobs:
-  # The job key is part of the SPIFFE ID (…/homelab-cookbooks/publish) that OpenBao role
-  # ci-chef-supermarket-publisher accepts; do not rename it.
+  # On the homelab ARC runner: the bucket and Nexus are LAN-only. The OpenBao login's SPIFFE ID
+  # (…/homelab-cookbooks/publish, from this file's name) is what role ci-chef-supermarket-publisher accepts.
   publish:
-    runs-on: [self-hosted, pod]
+    runs-on: homelab
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC token, one half of spire-identity-exchange's proof
     env:
       WORKSTATION: cincproject/workstation:26.3.0
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - id: nexus
-        uses: https://git.ddupan.top/panxiao81/ci-actions/setup-nexus@v1
+        uses: ddupan/ci-actions/setup-nexus@v1
         with:
           nexus-url: https://nexus.lab.ddupan.top
           oci: 'true'
@@ -36,7 +44,7 @@ jobs:
           for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
           echo "WORKSTATION=$image" >> "$GITHUB_ENV"
 
-      - uses: https://git.ddupan.top/panxiao81/ci-actions/spiffe-openbao-login@v1
+      - uses: ddupan/ci-actions/spiffe-openbao-login@v1
         with:
           role: ci-chef-supermarket-publisher
 
@@ -46,4 +54,4 @@ jobs:
           BAO_S3_SECRET: k8s/chef-supermarket-s3-publisher
         run: |
           docker run --rm -e S3_URL -e BAO_S3_SECRET -e BAO_ADDR -e BAO_TOKEN -e HOME=/tmp \
-            -v "$PWD:/repo:ro" "$WORKSTATION" python3 /repo/.gitea/scripts/publish.py /repo/cookbooks
+            -v "$PWD:/repo:ro" "$WORKSTATION" python3 /repo/.github/scripts/publish.py /repo/cookbooks
