@@ -79,7 +79,13 @@ action :create do
   end
 
   # Quadlet units are generated: enabling them is the [Install] section's job.
+  # A unit between Restart=on-failure attempts (SubState auto-restart) is already being started by
+  # systemd; starting it again only reports a change on every run while the container crash-loops
+  # (Kitchen: the manager cannot reach Bao or PostgreSQL). A config change still restarts it: the
+  # quadlet file notifies before this guard is evaluated, and systemd picks up the regenerated unit
+  # on its next attempt either way.
   service name do
     action :start
+    not_if "systemctl show -p SubState --value #{name}.service | grep -qx auto-restart"
   end
 end

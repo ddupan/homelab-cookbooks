@@ -16,6 +16,7 @@ describe 'homelab_ayatori::default' do
     stub_command(/^podman image exists/).and_return(true)
     stub_command(/^mountpoint/).and_return(true)
     stub_command(/^test -f/).and_return(true)
+    stub_command(/^systemctl show -p SubState/).and_return(false)
   end
 
   it 'runs kube-controller-manager with the certificate controllers' do
