@@ -3,7 +3,7 @@ maintainer 'panxiao81'
 maintainer_email 'panxiao81@outlook.com'
 license 'All Rights Reserved'
 description 'Ayatori LoadBalancer host: HAProxy, Data Plane API and the Ayatori LB agent'
-version '0.5.1'
+version '0.5.1' # x-release-please-version
 chef_version '>= 19'
 depends 'homelab_base'
 supports 'debian', '>= 13.0'

@@ -17,12 +17,13 @@ registry 是 SeaweedFS 上的静态 supermarket（`https://s3.lab.ddupan.top/che
 不再发布，旧版本留在那里只作历史。
 
 **版本号和 CHANGELOG 不手写。** 提交信息用 Conventional Commits，scope 写 cookbook 名
-（`feat(homelab_data): …`、`fix(homelab_base): …`，破坏性变更加 `!`）。`release.yml` 在每次合并后
-维护一个发布 PR（分支 `release/cookbooks`）：按上次改版本以来的提交为每个 cookbook 算下一个版本
-（1.0 前：`feat`/破坏性 → minor，`fix`/`perf`/`refactor`/`revert`/`chore(deps)` → patch，
-`docs`/`test`/`ci`/`chore` 不发版），改 `metadata.rb` 并在该 cookbook 的 `CHANGELOG.md` 前面加一节。
-**合并发布 PR 即发布**；平时的 PR 不要改 `version`。规则在 `.github/scripts/release.py`，
-PR 的 CI 会预览这次合并后的发布计划。
+（`feat(homelab_data): …`、`fix(homelab_base): …`，破坏性变更加 `!`）。`release.yml`（release-please）
+在每次合并后维护一个发布 PR：按各 cookbook 目录下的提交算下一个版本（1.0 前：`feat`/破坏性 → minor，
+`fix`/`chore`（含 Renovate 的 `chore(deps)`）/`perf`/`refactor`/`revert` → patch；`docs`/`test`/`ci` 不单独发版），
+改 `metadata.rb` 里带 `# x-release-please-version` 的那一行，并更新该 cookbook 的 `CHANGELOG.md`。
+release-please 只对写进 changelog 的类型发版，所以 `chore` 在 `changelog-sections` 里设为可见。**合并发布 PR 即发布**：release-please 打 `<cookbook>-v<版本>` tag 并建 GitHub
+Release，`publish.yml` 推到 registry。平时的 PR 不要改 `version`。规则在 `release-please-config.json`，
+当前版本在 `.release-please-manifest.json`。
 
 ### 第三方软件版本
 
