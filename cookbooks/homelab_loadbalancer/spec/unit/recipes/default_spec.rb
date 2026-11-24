@@ -70,7 +70,7 @@ describe 'homelab_loadbalancer::default' do
 
   it 'installs the agent from the pinned Ayatori release' do
     expect(chef_run.remote_file('/var/cache/homelab-cinc/ayatori-lb-agent_0.3.0_linux_amd64.tar.gz').source)
-      .to eq(['https://git.ddupan.top/panxiao81/ayatori/releases/download/v0.3.0/ayatori-lb-agent_0.3.0_linux_amd64.tar.gz'])
+      .to eq(['https://github.com/ddupan/ayatori/releases/download/v0.3.0/ayatori-lb-agent_0.3.0_linux_amd64.tar.gz'])
   end
 
   it 'configures the agent in the schema it parses strictly' do

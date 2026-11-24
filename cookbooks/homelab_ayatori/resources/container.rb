@@ -71,6 +71,15 @@ action :create do
     action :nothing
   end
 
+  # Declared before the quadlet file so its immediate :restart runs right after the file changes.
+  # In unified mode a notification to a resource declared later waits until that resource has run:
+  # with only the :start below, a first install ran start and then restart while the container was
+  # still starting, and systemd cancelled the start job ("a fatal signal was delivered to the
+  # control process"). A start that finds the unit activating waits for that job instead.
+  service name do
+    action :nothing
+  end
+
   file "/etc/containers/systemd/#{name}.container" do
     content "#{lines.join("\n")}\n"
     mode '0644'
@@ -79,7 +88,13 @@ action :create do
   end
 
   # Quadlet units are generated: enabling them is the [Install] section's job.
+  # A unit between Restart=on-failure attempts (SubState auto-restart) is already being started by
+  # systemd; starting it again only reports a change on every run while the container crash-loops
+  # (Kitchen: the manager cannot reach Bao or PostgreSQL). A config change still restarts it: the
+  # quadlet file notifies before this guard is evaluated, and systemd picks up the regenerated unit
+  # on its next attempt either way.
   service name do
     action :start
+    not_if "systemctl show -p SubState --value #{name}.service | grep -qx auto-restart"
   end
 end

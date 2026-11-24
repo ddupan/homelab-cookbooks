@@ -16,6 +16,7 @@ describe 'homelab_ayatori::default' do
     stub_command(/^podman image exists/).and_return(true)
     stub_command(/^mountpoint/).and_return(true)
     stub_command(/^test -f/).and_return(true)
+    stub_command(/^systemctl show -p SubState/).and_return(false)
   end
 
   it 'runs kube-controller-manager with the certificate controllers' do
@@ -128,7 +129,7 @@ describe 'homelab_ayatori::default' do
       'dns' => { 'url' => 'http://192.168.10.127:8053', 'zone' => 'dev-lb.lab.ddupan.top' },
     }
     default_attributes['homelab_ayatori']['gitops'] = {
-      'url' => 'https://git.ddupan.top/panxiao81/homelab-infra.git', 'path' => './clusters/ayatori-dev'
+      'url' => 'https://github.com/ddupan/homelab-infra.git', 'path' => './clusters/ayatori-dev'
     }
 
     it 'passes the pool and the DNS zone to the manager, syncs the LB credentials and lets gitops declare LBs' do
