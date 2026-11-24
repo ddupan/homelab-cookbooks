@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       cookbooks: ${{ steps.pick.outputs.cookbooks }}
     steps:
@@ -59,7 +59,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.cookbooks != '[]'
     # GitHub-hosted: every image the suites use is public (the ayatori suite runs the ghcr release image).
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
