@@ -54,12 +54,6 @@ jobs:
           echo "cookbooks=$json" >> "$GITHUB_OUTPUT"
           echo "testing: $json"
 
-      # PR 不再升 metadata.rb 的 version：release.yml 按 Conventional Commits 汇总成发布 PR。
-      # 这里测分类规则，并预览合并后这些提交会让哪些 cookbook 发什么版本。
-      - name: Release plan
-        run: |
-          python3 .github/scripts/test_release.py
-          python3 .github/scripts/release.py
 
   test:
     needs: changes

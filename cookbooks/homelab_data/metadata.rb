@@ -3,7 +3,7 @@ maintainer 'panxiao81'
 maintainer_email 'panxiao81@outlook.com'
 license 'All Rights Reserved'
 description 'Shared data service nodes (etcd member, PostgreSQL replica, pgBackRest repository)'
-version '0.2.1'
+version '0.2.1' # x-release-please-version
 chef_version '>= 19'
 supports 'ubuntu'
 supports 'debian'

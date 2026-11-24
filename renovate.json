@@ -17,6 +17,12 @@
   ],
   "packageRules": [
     {
+      "description": "release-please 只对 feat/fix/perf/revert 发版；cookbook 里的依赖升级用 fix(deps)，合并后进入发布 PR。",
+      "matchFileNames": ["cookbooks/**"],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    },
+    {
       "description": "Bare version values (3.7.2); the recipes add the tag's `v` themselves, so strip it. Values that keep the v (k0s) are left alone.",
       "matchDatasources": [
         "github-releases"
@@ -36,7 +42,7 @@
       "schedule": [
         "before 6am on monday"
       ],
-      "semanticCommitType": "chore",
+      "semanticCommitType": "fix",
       "semanticCommitScope": "deps",
       "prBodyNotes": [
         "k0s 旁边写死的 `sha256` 要在本 PR 里一起改。合并后进入发布 PR；节点要等 homelab-infra 的 policy 改 `= 版本` 并 `cinc update` 才会用上。"

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "44a2046dc933cdb4b259562409873721ec6df230",
+  "release-type": "simple",
+  "bump-minor-pre-major": true,
+  "include-component-in-tag": true,
+  "separate-pull-requests": false,
+  "pull-request-title-pattern": "chore(release): 发布 cookbook",
+  "pull-request-header": "合并即发布：publish.yml 把下列版本推到 registry。节点仍按 homelab-infra 的 policy 固定版本运行，要用新版本需在那边改 `= 版本` 并 `cinc update`。",
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "新功能"
+    },
+    {
+      "type": "fix",
+      "section": "修复"
+    },
+    {
+      "type": "perf",
+      "section": "其他"
+    },
+    {
+      "type": "revert",
+      "section": "其他"
+    },
+    {
+      "type": "refactor",
+      "section": "其他",
+      "hidden": true
+    },
+    {
+      "type": "docs",
+      "section": "文档",
+      "hidden": true
+    },
+    {
+      "type": "chore",
+      "section": "杂项",
+      "hidden": true
+    }
+  ],
+  "packages": {
+    "cookbooks/homelab_ayatori": {
+      "component": "homelab_ayatori",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "metadata.rb"
+        }
+      ]
+    },
+    "cookbooks/homelab_base": {
+      "component": "homelab_base",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "metadata.rb"
+        }
+      ]
+    },
+    "cookbooks/homelab_compute": {
+      "component": "homelab_compute",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "metadata.rb"
+        }
+      ]
+    },
+    "cookbooks/homelab_data": {
+      "component": "homelab_data",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "metadata.rb"
+        }
+      ]
+    },
+    "cookbooks/homelab_loadbalancer": {
+      "component": "homelab_loadbalancer",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "metadata.rb"
+        }
+      ]
+    }
+  }
+}
