@@ -7,7 +7,7 @@
 unified_mode true
 
 property :version, String, required: true
-property :url_base, String, default: lazy { "https://git.ddupan.top/panxiao81/ayatori/releases/download/v#{version}" }
+property :url_base, String, default: lazy { "https://github.com/ddupan/ayatori/releases/download/v#{version}" }
 
 action :install do
   homelab_base_verified_release '/usr/local/bin/ayatori-imds' do

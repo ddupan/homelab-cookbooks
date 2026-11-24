@@ -10,7 +10,7 @@ require 'securerandom'
 unified_mode true
 
 property :version, String, required: true
-property :url_base, String, default: lazy { "https://git.ddupan.top/panxiao81/ayatori/releases/download/v#{version}" }
+property :url_base, String, default: lazy { "https://github.com/ddupan/ayatori/releases/download/v#{version}" }
 property :router_id, String, required: true
 property :local_as, Integer, required: true
 property :neighbors, Hash, required: true,

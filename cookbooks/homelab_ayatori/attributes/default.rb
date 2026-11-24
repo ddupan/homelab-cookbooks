@@ -34,7 +34,7 @@ ay['oidc'] = {}
 
 # Site endpoints: defaults the node policy may override.
 ay['openbao_address'] = 'https://bao.lab.ddupan.top:8200'
-ay['repository'] = 'https://git.ddupan.top/panxiao81/ayatori.git'
+ay['repository'] = 'https://github.com/ddupan/ayatori.git'
 # nil = node['ipaddress'].
 ay['api_address'] = nil
 # Central CA for PostgreSQL verify-full; nil = Bao's pki/ CA. Kitchen points it at a fixture.
