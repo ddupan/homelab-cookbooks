@@ -17,7 +17,15 @@
       "section": "修复"
     },
     {
+      "type": "chore",
+      "section": "依赖与维护"
+    },
+    {
       "type": "perf",
+      "section": "其他"
+    },
+    {
+      "type": "refactor",
       "section": "其他"
     },
     {
@@ -25,18 +33,18 @@
       "section": "其他"
     },
     {
-      "type": "refactor",
-      "section": "其他",
-      "hidden": true
-    },
-    {
       "type": "docs",
       "section": "文档",
       "hidden": true
     },
     {
-      "type": "chore",
-      "section": "杂项",
+      "type": "test",
+      "section": "测试",
+      "hidden": true
+    },
+    {
+      "type": "ci",
+      "section": "CI",
       "hidden": true
     }
   ],
