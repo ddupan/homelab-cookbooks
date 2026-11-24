@@ -3,7 +3,7 @@ maintainer 'panxiao81'
 maintainer_email 'panxiao81@outlook.com'
 license 'All Rights Reserved'
 description 'Baseline every homelab Linux node shares'
-version '0.4.5' # x-release-please-version
+version '0.4.6' # x-release-please-version
 chef_version '>= 19'
 supports 'ubuntu'
 supports 'debian'
