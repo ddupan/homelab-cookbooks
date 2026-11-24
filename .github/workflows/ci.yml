@@ -64,10 +64,8 @@ jobs:
   test:
     needs: changes
     if: needs.changes.outputs.cookbooks != '[]'
-    # GitHub-hosted, except homelab_ayatori: its Kitchen suite runs the ayatori-manager release image,
-    # which is published only to the LAN zot for now. When ayatori publishes to ghcr, point the suite
-    # there and drop this condition and the Nexus step.
-    runs-on: ${{ matrix.cookbook == 'homelab_ayatori' && 'homelab' || 'ubuntu-24.04' }}
+    # GitHub-hosted: every image the suites use is public (the ayatori suite runs the ghcr release image).
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -80,36 +78,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # On the homelab runner images come through the LAN Nexus (Docker Hub proxy and the group the
-      # ayatori suite needs for ghcr.io/registry.k8s.io). GitHub-hosted runners pull directly.
-      - id: nexus
-        if: matrix.cookbook == 'homelab_ayatori'
-        uses: ddupan/ci-actions/setup-nexus@v1
-        with:
-          nexus-url: https://nexus.lab.ddupan.top
-          oci: 'true'
-
       # The WAN drops at random; every pull retries.
       - name: Pull images
-        env:
-          REGISTRY: ${{ steps.nexus.outputs.oci-public }}
         run: |
-          registry="${REGISTRY#https://}"
-          prefix=${registry:+$registry/}
-          if [ -n "$registry" ]; then
-            echo "DOKKEN_REGISTRY=$registry" >> "$GITHUB_ENV"
-            echo "WORKSTATION=$prefix$WORKSTATION" >> "$GITHUB_ENV"
-          fi
           for image in "$WORKSTATION" cincproject/cinc:19 \
                        dokken/ubuntu-24.04 dokken/debian-12 dokken/debian-13; do
-            for i in 1 2 3 4 5; do docker pull -q "$prefix$image" && break; sleep 15; done
+            for i in 1 2 3 4 5; do docker pull -q "$image" && break; sleep 15; done
           done
-          # kitchen-dokken builds its data image FROM <registry>/almalinux:9 without pulling; behind
-          # the proxy an official image is library/<name>.
-          if [ -n "$registry" ]; then
-            for i in 1 2 3 4 5; do docker pull -q "$registry/library/almalinux:9" && break; sleep 15; done
-            docker tag "$registry/library/almalinux:9" "$registry/almalinux:9"
-          fi
 
       # Cookstyle + ChefSpec first: seconds, and a failure here skips Kitchen.
       # Kitchen then converges twice per platform (second run must update nothing)
@@ -117,12 +92,10 @@ jobs:
       # reach the dokken bridge, which a default-bridge container cannot.
       # All of cookbooks/ is mounted: a Policyfile may take a sibling by path.
       # test/unit holds Python tests for scripts a cookbook ships (homelab_data's collector).
-      # `-e DOKKEN_REGISTRY` passes it only when set (homelab runner).
       - name: Lint, unit, integration
         run: |
           docker run --rm --network host \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -e DOKKEN_REGISTRY \
             -v "$PWD/cookbooks:/cookbooks" -w "/cookbooks/${{ matrix.cookbook }}" "$WORKSTATION" \
             bash -lc 'cookstyle . && { [ ! -d test/unit ] || python3 -m unittest discover -s test/unit; } &&
                       cinc install && cinc exec rspec && kitchen test --destroy=always'

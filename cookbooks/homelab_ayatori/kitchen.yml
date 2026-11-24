@@ -28,16 +28,16 @@ platforms:
 suites:
   - name: default
     attributes:
-      # CI: the pod runner cannot reach ghcr.io or registry.k8s.io; pull every registry through
-      # the Nexus group (homelab-infra apps/nexus). Unset locally.
+      # Optional pull-through mirror for every registry (e.g. a LAN Nexus group); unset in CI.
       ayatori_test:
         registry_mirror: <%= ENV['DOKKEN_REGISTRY'] %>
       homelab_ayatori:
         environment: dev
-        release: v0.3.0
-        # A tagged release: Zot garbage-collects untagged builds. The manager itself cannot reach
-        # Bao or PostgreSQL from Kitchen and keeps restarting, which the suite does not check.
-        image: zot.lab.ddupan.top/panxiao81/ayatori-manager@sha256:2d68a8e50c33806aa3569fbba376ca96ad66201a4ff1e76e33b410eec8ad77a8
+        release: v0.5.0
+        # The release image from ghcr (public), so the suite runs on GitHub-hosted runners; Dev/Prod
+        # pull the same digest from the LAN zot. The manager itself cannot reach Bao or PostgreSQL
+        # from Kitchen and keeps restarting, which the suite does not check.
+        image: ghcr.io/ddupan/ayatori-manager@sha256:57f8ca27614259921749cde82c8a1e36ae089ca6f1b856fa914e8893d5946fa4
         postgresql_instance:
           name: kitchen
           host: pg.invalid
