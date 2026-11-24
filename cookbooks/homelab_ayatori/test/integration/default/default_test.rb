@@ -53,6 +53,7 @@ describe json(command: "curl -s --cacert /var/lib/k0s/pki/ca.crt https://127.0.0
   its(%w(data clientID)) { should eq 'ayatori-kitchen' }
   its(%w(data issuer)) { should eq 'https://sso.ddupan.top' }
   its(['data', 'ca.crt']) { should eq file('/var/lib/k0s/pki/ca.crt').content }
+  its(%w(data version)) { should eq 'v0.5.0' }
 end
 
 # Anything else is unauthenticated: listing the namespace, the same name elsewhere, discovery.

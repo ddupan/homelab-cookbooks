@@ -68,7 +68,8 @@ describe 'homelab_ayatori::default' do
         expect(docs.map { |d| d['metadata']['namespace'] }.uniq).to eq(%w(kube-public))
         login = docs.find { |d| d['kind'] == 'ConfigMap' }
         expect(login['data']).to eq('issuer' => 'https://sso.example', 'clientID' => 'ayatori-dev',
-                                    'ca.crt' => "-----BEGIN CERTIFICATE-----\nk0s\n-----END CERTIFICATE-----\n")
+                                    'ca.crt' => "-----BEGIN CERTIFICATE-----\nk0s\n-----END CERTIFICATE-----\n",
+                                    'version' => 'v0.3.0')
         role = docs.find { |d| d['kind'] == 'Role' }
         expect(role['rules']).to eq([{ 'apiGroups' => [''], 'resources' => %w(configmaps),
                                        'resourceNames' => %w(ayatori-login), 'verbs' => %w(get) }])

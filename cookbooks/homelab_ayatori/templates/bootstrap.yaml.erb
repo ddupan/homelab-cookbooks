@@ -82,6 +82,8 @@ data:
   issuer: <%= @login['issuer'].to_json %>
   clientID: <%= @login['client_id'].to_json %>
   ca.crt: <%= ::File.read(@login_ca).to_json %>
+  # 环境固定的 release：ayatori CLI 据此检查版本偏差（ADR-0027）。
+  version: <%= @release.to_json %>
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
