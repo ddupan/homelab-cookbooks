@@ -152,6 +152,54 @@ describe 'homelab_ayatori::default' do
     }
   end
 
+  it 'runs no ayatori-api unless enabled' do
+    is_expected.not_to render_file('/etc/containers/systemd/ayatori-api.container')
+    is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c| expect(c).not_to include('APIService') }
+  end
+
+  context 'with ayatori-api' do
+    default_attributes['homelab_ayatori']['ayatori_api'] = true
+    serving = '/etc/ayatori-control-plane/ayatori-api-serving'
+
+    before do
+      stub_command(/^openssl x509 -checkend/).and_return(false)
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with("#{serving}/tls.crt").and_return('SERVING-CERT')
+    end
+
+    it 'self-signs the serving certificate for the service name, renewing it before it expires' do
+      is_expected.to run_execute('ayatori-api serving certificate').with(
+        command: a_string_including('-subj /CN=ayatori-api.ayatori-system.svc',
+                                    'subjectAltName=DNS:ayatori-api.ayatori-system.svc', "-out #{serving}/tls.crt")
+      )
+      is_expected.to create_directory(serving).with(owner: 65_532, mode: '0700')
+    end
+
+    it 'registers the APIService through an ExternalName Service on loopback, pinning that certificate' do
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+        docs = YAML.load_stream(c).compact
+        service = docs.find { |d| d['kind'] == 'Service' && d['metadata']['name'] == 'ayatori-api' }
+        expect(service['spec']).to eq('type' => 'ExternalName', 'externalName' => '127.0.0.1', 'ports' => [{ 'port' => 9445 }])
+        api = docs.find { |d| d['kind'] == 'APIService' }
+        expect(api['metadata']['name']).to eq('v1alpha1.subresources.ayatori.ddupan.top')
+        expect(api['spec']['caBundle'].unpack1('m0')).to eq('SERVING-CERT')
+        expect(api['spec']['service']).to eq('namespace' => 'ayatori-system', 'name' => 'ayatori-api', 'port' => 9445)
+      }
+    end
+
+    it 'runs it from the manager image with its own identity and OpenBao role' do
+      is_expected.to render_file('/etc/containers/systemd/ayatori-api.container').with_content { |c|
+        expect(c).to include("Image=#{image}", 'PodmanArgs=--entrypoint=/ayatori-api', 'User=65532',
+                             'Volume=/etc/ayatori-control-plane/ayatori-api:/identity:ro', "Volume=#{serving}:/serving:ro",
+                             '--listen=127.0.0.1:9445', '--openbao-auth-role=ayatori-dev-api',
+                             '--openbao-service-account-name=api-openbao-login',
+                             '--database-credential-prefix=ayatori/dev/applications')
+      }
+      is_expected.to render_file('/etc/containers/systemd/client-credentials.container')
+        .with_content('--identity=ayatori-api=/identities/ayatori-api')
+    end
+  end
+
   context 'with LoadBalancer enabled' do
     default_attributes['homelab_ayatori']['loadbalancer'] = {
       'address_pool' => '10.62.1.0/24',

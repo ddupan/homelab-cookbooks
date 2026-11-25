@@ -28,6 +28,11 @@ raise 'homelab_ayatori.spiffe_issuer needs oidc for its audiences' if spiffe_iss
 # `ayatori config add` reads where to sign in from this ConfigMap before it has a token
 # (Ayatori ADR-0027): the only path anonymous requests may use.
 LOGIN_DISCOVERY = '/api/v1/namespaces/kube-public/configmaps/ayatori-login'.freeze
+# ayatori-api listens on loopback only: the apiserver on this host reaches it through an
+# ExternalName Service, and verifies its certificate as ayatori-api.<namespace>.svc.
+api_server = ay['ayatori_api']
+API_PORT = 9445
+api_serving = "#{identities_dir}/ayatori-api-serving"
 
 package %w(podman openssl)
 
@@ -155,6 +160,25 @@ cookbook_file "#{state}/client-certificates.yaml" do
   mode '0600'
 end
 
+# ayatori-api's serving certificate: self-signed here, and the APIService pins it as its
+# caBundle, so nothing about it ships with a release. Renewed 30 days before it expires;
+# ayatori-api reads it on every handshake, and the APIService is re-applied below.
+if api_server
+  directory api_serving do
+    owner 65_532
+    mode '0700'
+    recursive true
+  end
+
+  execute 'ayatori-api serving certificate' do
+    command 'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 397 ' \
+            "-subj /CN=ayatori-api.#{namespace}.svc -addext subjectAltName=DNS:ayatori-api.#{namespace}.svc " \
+            "-keyout #{api_serving}/tls.key -out #{api_serving}/tls.crt && " \
+            "chown 65532 #{api_serving}/tls.key #{api_serving}/tls.crt && chmod 0400 #{api_serving}/tls.key"
+    not_if "openssl x509 -checkend 2592000 -noout -in #{api_serving}/tls.crt"
+  end
+end
+
 template "#{state}/bootstrap.yaml" do
   source 'bootstrap.yaml.erb'
   mode '0600'
@@ -175,7 +199,8 @@ template "#{state}/bootstrap.yaml" do
     login: oidc && { 'issuer' => oidc['issuer'], 'client_id' => Array(oidc['audiences']).first },
     # k0s's CA, which the CLI pins after the user confirms its fingerprint. The template reads
     # it while rendering: homelab_ayatori_k0s has waited for the API, so k0s has generated it.
-    login_ca: '/var/lib/k0s/pki/ca.crt'
+    login_ca: '/var/lib/k0s/pki/ca.crt',
+    api: api_server && { 'port' => API_PORT, 'ca' => "#{api_serving}/tls.crt" }
   )
 end
 
@@ -195,6 +220,7 @@ identities = {
   'flux-kustomize-controller' => 65_534,
   'kube-state-metrics' => 65_534,
 }
+identities['ayatori-api'] = 65_532 if api_server
 
 directory identities_dir do
   mode '0755'
@@ -310,6 +336,17 @@ containers = {
            '--database-credential-mount=kv', "--database-credential-prefix=ayatori/#{env}/applications",
            '--database-provision-resources', "--database-credential-url-base=#{ay['openbao_address']}"] + lb_args
   },
+  # 聚合子资源（ADR-0027）：读 Tenant 公布的凭据位置，以自己的 OpenBao role 读取，只能读应用凭据。
+  'ayatori-api' => api_server && {
+    image: ay['image'], identity: 'ayatori-api', entrypoint: '/ayatori-api', memory: '128M',
+    volumes: ["#{api_serving}:/serving:ro"],
+    exec: ["--listen=127.0.0.1:#{API_PORT}", '--tls-cert=/serving/tls.crt', '--tls-key=/serving/tls.key',
+           "--openbao-address=#{ay['openbao_address']}", "--openbao-auth-mount=kubernetes-ayatori-#{env}",
+           "--openbao-auth-role=ayatori-#{env}-api", "--openbao-service-account-namespace=#{namespace}",
+           '--openbao-service-account-name=api-openbao-login',
+           '--openbao-token-audience=https://kubernetes.default.svc',
+           '--database-credential-mount=kv', "--database-credential-prefix=ayatori/#{env}/applications"]
+  },
   # 只导出 CR 状态（Flux 对象与 Ayatori 资源），不导出内置资源。
   'kube-state-metrics' => {
     image: ay['ksm']['image'], identity: 'kube-state-metrics', memory: '128M',
@@ -321,9 +358,12 @@ containers = {
 }
 
 containers.each do |name, c|
+  next unless c
+
   dir = "#{identities_dir}/#{c[:identity]}"
   homelab_ayatori_container name do
     image c[:image]
+    entrypoint c[:entrypoint]
     user identities[c[:identity]]
     volumes ["#{dir}:/identity:ro"] + c.fetch(:volumes, [])
     env({ 'KUBECONFIG' => '/identity/kubeconfig' }.merge(c.fetch(:env, {})))

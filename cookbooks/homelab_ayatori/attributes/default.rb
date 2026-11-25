@@ -38,6 +38,10 @@ ay['oidc'] = {}
 # (spiffe://…, no prefix). RBAC for them is the API's own. nil = people only.
 ay['spiffe_issuer'] = nil
 
+# ayatori-api (Ayatori ADR-0027): the aggregated subresources (database credentials), from
+# the same image as the manager. Turn on only with a release whose image has /ayatori-api.
+ay['ayatori_api'] = false
+
 # Site endpoints: defaults the node policy may override.
 ay['openbao_address'] = 'https://bao.lab.ddupan.top:8200'
 ay['repository'] = 'https://github.com/ddupan/ayatori.git'

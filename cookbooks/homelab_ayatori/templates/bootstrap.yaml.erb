@@ -108,6 +108,36 @@ subjects:
   apiGroup: rbac.authorization.k8s.io
   name: system:unauthenticated
 <% end -%>
+<% if @api -%>
+---
+# ayatori-api（ADR-0027）在本机回环地址上；apiserver 经 ExternalName 直连，按 <service>.<namespace>.svc
+# 校验它的服务证书（本机自签，即 caBundle）。RBAC 随 release 由 Flux 应用（deploy/flux/control-plane/api.yaml）。
+apiVersion: v1
+kind: Service
+metadata:
+  name: ayatori-api
+  namespace: <%= @control_namespace %>
+spec:
+  type: ExternalName
+  externalName: 127.0.0.1
+  ports:
+  - port: <%= @api['port'] %>
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1alpha1.subresources.ayatori.ddupan.top
+spec:
+  group: subresources.ayatori.ddupan.top
+  version: v1alpha1
+  groupPriorityMinimum: 1000
+  versionPriority: 15
+  caBundle: <%= [::File.read(@api['ca'])].pack('m0') %>
+  service:
+    namespace: <%= @control_namespace %>
+    name: ayatori-api
+    port: <%= @api['port'] %>
+<% end -%>
 ---
 # kube-state-metrics 只读 CRD 与需要导出状态的 CR。
 apiVersion: rbac.authorization.k8s.io/v1
