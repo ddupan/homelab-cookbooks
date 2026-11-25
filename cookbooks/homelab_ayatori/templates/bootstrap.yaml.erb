@@ -132,7 +132,8 @@ spec:
   version: v1alpha1
   groupPriorityMinimum: 1000
   versionPriority: 15
-  caBundle: <%= [::File.read(@api['ca'])].pack('m0') %>
+  # why-run 首次开启时证书还没签发：空 caBundle 不会让 apiserver 信任任何后端。
+  caBundle: <%= ::File.exist?(@api['ca']) ? [::File.read(@api['ca'])].pack('m0') : '""' %>
   service:
     namespace: <%= @control_namespace %>
     name: ayatori-api

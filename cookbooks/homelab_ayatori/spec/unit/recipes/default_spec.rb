@@ -165,6 +165,8 @@ describe 'homelab_ayatori::default' do
       stub_command(/^openssl x509 -checkend/).and_return(false)
       allow(File).to receive(:read).and_call_original
       allow(File).to receive(:read).with("#{serving}/tls.crt").and_return('SERVING-CERT')
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with("#{serving}/tls.crt").and_return(true)
     end
 
     it 'self-signs the serving certificate for the service name, renewing it before it expires' do
@@ -185,6 +187,20 @@ describe 'homelab_ayatori::default' do
         expect(api['spec']['caBundle'].unpack1('m0')).to eq('SERVING-CERT')
         expect(api['spec']['service']).to eq('namespace' => 'ayatori-system', 'name' => 'ayatori-api', 'port' => 9445)
       }
+    end
+
+    context 'before the certificate exists (why-run on first enabling)' do
+      before do
+        allow(File).to receive(:exist?).and_call_original
+        allow(File).to receive(:exist?).with("#{serving}/tls.crt").and_return(false)
+      end
+
+      it 'renders an empty caBundle instead of failing, which trusts no backend' do
+        is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content { |c|
+          api = YAML.load_stream(c).compact.find { |d| d['kind'] == 'APIService' }
+          expect(api['spec']['caBundle']).to eq('')
+        }
+      end
     end
 
     it 'runs it from the manager image with its own identity and OpenBao role' do
