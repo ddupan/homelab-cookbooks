@@ -1,5 +1,5 @@
 {
-  "cookbooks/homelab_ayatori": "0.4.0",
+  "cookbooks/homelab_ayatori": "0.5.0",
   "cookbooks/homelab_base": "0.4.6",
   "cookbooks/homelab_compute": "0.5.0",
   "cookbooks/homelab_data": "0.2.2",

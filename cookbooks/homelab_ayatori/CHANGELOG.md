@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/ddupan/homelab-cookbooks/compare/homelab_ayatori-v0.4.0...homelab_ayatori-v0.5.0) (2026-11-25)
+
+
+### 新功能
+
+* **homelab_ayatori:** apiserver 接受 SPIFFE JWT-SVID ([c927cff](https://github.com/ddupan/homelab-cookbooks/commit/c927cffc51c2b51d6be89be1d412cd1d2840e299))
+* **homelab_ayatori:** apiserver 接受 SPIFFE JWT-SVID ([38ef689](https://github.com/ddupan/homelab-cookbooks/commit/38ef689190e053adcabcbb54622c9f53516912df))
+* **homelab_ayatori:** 部署 ayatori-api ([b589714](https://github.com/ddupan/homelab-cookbooks/commit/b589714c513bb906a9c91b6c40b86cb13957167f))
+* **homelab_ayatori:** 部署 ayatori-api ([cffb40c](https://github.com/ddupan/homelab-cookbooks/commit/cffb40caf344ef20dc31d3256b432670e5e82d4d))
+
+
+### 修复
+
+* **homelab_ayatori:** ayatori-api 服务证书提前到 45 天重签 ([6052cd5](https://github.com/ddupan/homelab-cookbooks/commit/6052cd53f095d0b53c7087482e05864540986a80))
+* **homelab_ayatori:** 首次开启 ayatori_api 时 why-run 不失败 ([17006e8](https://github.com/ddupan/homelab-cookbooks/commit/17006e81eaae75d3917e4d19925643f71e5d7d60))
+* **homelab_ayatori:** 首次开启 ayatori_api 时 why-run 不失败 ([385893c](https://github.com/ddupan/homelab-cookbooks/commit/385893c6ba47ba44e3f5a4fc6774baa49439caff))
+
 ## [0.4.0](https://github.com/ddupan/homelab-cookbooks/compare/homelab_ayatori-v0.3.0...homelab_ayatori-v0.4.0) (2026-11-24)
 
 
