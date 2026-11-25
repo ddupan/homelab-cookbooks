@@ -17,7 +17,7 @@ not_after() { date -d "$(openssl x509 -noout -enddate | cut -d= -f2)" +%s; }
     identity=$(basename "$(dirname "$c")")
     echo "ayatori_certificate_not_after_timestamp_seconds{source=\"kubeconfig\",identity=\"$identity\"} $(not_after < "$c")"
   done
-  # 部署方自签的服务证书（ayatori-api），converge 在到期前 30 天重签。
+  # 部署方自签的服务证书（ayatori-api），converge 在到期前 45 天重签。
   for c in <%= @identities_dir %>/*-serving/tls.crt; do
     [ -e "$c" ] || continue
     name=$(basename "$(dirname "$c")")

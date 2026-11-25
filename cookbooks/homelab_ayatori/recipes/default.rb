@@ -161,7 +161,8 @@ cookbook_file "#{state}/client-certificates.yaml" do
 end
 
 # ayatori-api's serving certificate: self-signed here, and the APIService pins it as its
-# caBundle, so nothing about it ships with a release. Renewed 30 days before it expires;
+# caBundle, so nothing about it ships with a release. Renewed 45 days before it expires (the
+# certificate alert fires at 30, so it means renewal failed);
 # ayatori-api reads it on every handshake, and the APIService is re-applied below.
 if api_server
   directory api_serving do
@@ -175,7 +176,7 @@ if api_server
             "-subj /CN=ayatori-api.#{namespace}.svc -addext subjectAltName=DNS:ayatori-api.#{namespace}.svc " \
             "-keyout #{api_serving}/tls.key -out #{api_serving}/tls.crt && " \
             "chown 65532 #{api_serving}/tls.key #{api_serving}/tls.crt && chmod 0400 #{api_serving}/tls.key"
-    not_if "openssl x509 -checkend 2592000 -noout -in #{api_serving}/tls.crt"
+    not_if "openssl x509 -checkend 3888000 -noout -in #{api_serving}/tls.crt"
   end
 end
 
