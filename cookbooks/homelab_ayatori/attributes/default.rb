@@ -32,6 +32,12 @@ ay['loadbalancer']['agent_convergence'] = false
 # finer RBAC is the API's own. Empty = client certificates and service accounts only.
 ay['oidc'] = {}
 
+# Optional, with oidc: nodes, instances and automation authenticate with SPIFFE JWT-SVIDs
+# (Ayatori ADR-0027) — the issuer of SPIRE's OIDC discovery provider. They use the same
+# audiences as oidc (the environment's), and the username is the SPIFFE ID itself
+# (spiffe://…, no prefix). RBAC for them is the API's own. nil = people only.
+ay['spiffe_issuer'] = nil
+
 # Site endpoints: defaults the node policy may override.
 ay['openbao_address'] = 'https://bao.lab.ddupan.top:8200'
 ay['repository'] = 'https://github.com/ddupan/ayatori.git'
