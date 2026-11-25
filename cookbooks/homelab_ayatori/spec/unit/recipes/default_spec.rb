@@ -88,6 +88,35 @@ describe 'homelab_ayatori::default' do
     end
   end
 
+  context 'with OIDC and SPIFFE' do
+    default_attributes['homelab_ayatori']['oidc'] = { 'issuer' => 'https://sso.example', 'audiences' => %w(ayatori-dev) }
+    default_attributes['homelab_ayatori']['spiffe_issuer'] = 'https://spire-oidc.example'
+
+    before do
+      allow(File).to receive(:read).and_call_original
+      allow(File).to receive(:read).with('/var/lib/k0s/pki/ca.crt')
+                                   .and_return("-----BEGIN CERTIFICATE-----\nk0s\n-----END CERTIFICATE-----\n")
+    end
+
+    it 'accepts JWT-SVIDs for the same audiences with the SPIFFE ID as the username' do
+      config = YAML.safe_load(chef_run.file('/etc/ayatori-apiserver/authentication.yaml').content)
+      expect(config['jwt'].map { |j| j['issuer']['url'] }).to eq(%w(https://sso.example https://spire-oidc.example))
+      spiffe = config['jwt'].last
+      expect(spiffe['issuer']).to eq('url' => 'https://spire-oidc.example', 'audiences' => %w(ayatori-dev),
+                                     'audienceMatchPolicy' => 'MatchAny')
+      expect(spiffe['claimMappings']).to eq('username' => { 'claim' => 'sub', 'prefix' => '' })
+      expect(config['anonymous']['enabled']).to be true
+    end
+  end
+
+  context 'with SPIFFE but no OIDC' do
+    default_attributes['homelab_ayatori']['spiffe_issuer'] = 'https://spire-oidc.example'
+
+    it 'fails: the audiences come from oidc' do
+      expect { chef_run }.to raise_error(RuntimeError, /spiffe_issuer needs oidc/)
+    end
+  end
+
   context 'with OIDC but no audience' do
     default_attributes['homelab_ayatori']['oidc'] = { 'issuer' => 'https://sso.example' }
 

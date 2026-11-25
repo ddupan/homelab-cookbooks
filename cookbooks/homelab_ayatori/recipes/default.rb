@@ -23,6 +23,8 @@ oidc = ay['oidc'].to_h.empty? ? nil : ay['oidc'].to_h
 if oidc && (oidc['issuer'].to_s.empty? || Array(oidc['audiences']).empty?)
   raise 'homelab_ayatori.oidc needs issuer and audiences'
 end
+spiffe_issuer = ay['spiffe_issuer']
+raise 'homelab_ayatori.spiffe_issuer needs oidc for its audiences' if spiffe_issuer && !oidc
 # `ayatori config add` reads where to sign in from this ConfigMap before it has a token
 # (Ayatori ADR-0027): the only path anonymous requests may use.
 LOGIN_DISCOVERY = '/api/v1/namespaces/kube-public/configmaps/ayatori-login'.freeze
@@ -47,6 +49,19 @@ directory ::File.dirname(AUTHENTICATION_CONFIG) do
   recursive true
 end
 
+# Nodes, instances and automation (Ayatori ADR-0027): SPIRE's JWT-SVIDs for the same audiences; the
+# username is the SPIFFE ID, which cannot collide with "oidc:" users.
+spiffe_jwt = spiffe_issuer && <<~YAML.gsub(/^/, '  ').strip
+  - issuer:
+      url: #{spiffe_issuer.to_json}
+      audiences: #{Array(oidc['audiences']).to_json}
+      audienceMatchPolicy: MatchAny
+    claimMappings:
+      username:
+        claim: sub
+        prefix: ""
+YAML
+
 file AUTHENTICATION_CONFIG do
   content(oidc && <<~YAML)
     # Managed by Cinc (homelab_ayatori)
@@ -64,6 +79,7 @@ file AUTHENTICATION_CONFIG do
           groups:
             claim: groups
             prefix: "oidc:"
+      #{spiffe_jwt}
     anonymous:
       enabled: true
       conditions:
