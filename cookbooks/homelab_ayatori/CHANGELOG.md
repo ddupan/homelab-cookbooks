@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/ddupan/homelab-cookbooks/compare/homelab_ayatori-v0.5.0...homelab_ayatori-v0.6.0) (2026-11-27)
+
+
+### 新功能
+
+* **homelab_ayatori:** gitops SA 可管理 RoleBinding ([80c0c95](https://github.com/ddupan/homelab-cookbooks/commit/80c0c9535845c27a8b1a9e652c46124984e4a56b))
+* **homelab_ayatori:** gitops SA 可管理 RoleBinding ([194092c](https://github.com/ddupan/homelab-cookbooks/commit/194092cc395112298789cf66b492326d1e5ad00a))
+
 ## [0.5.0](https://github.com/ddupan/homelab-cookbooks/compare/homelab_ayatori-v0.4.0...homelab_ayatori-v0.5.0) (2026-11-25)
 
 

@@ -3,7 +3,7 @@ maintainer 'panxiao81'
 maintainer_email 'panxiao81@outlook.com'
 license 'All Rights Reserved'
 description 'Ayatori API-only control plane: k0s controller, podman quadlets, client certificates'
-version '0.5.0' # x-release-please-version
+version '0.6.0' # x-release-please-version
 chef_version '>= 19'
 depends 'homelab_base'
 supports 'ubuntu', '>= 24.04'
