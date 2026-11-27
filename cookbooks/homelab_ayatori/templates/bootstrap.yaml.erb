@@ -311,6 +311,11 @@ rules:
 - apiGroups: [network.ayatori.ddupan.top]
   resources: [loadbalancerhosts, loadbalancers, backends]
   verbs: [get, list, watch, create, update, patch, delete]
+# workload 集群的 cloud-provider 在代表该集群的 namespace 中绑定 ClusterRole ayatori:cloud-provider
+# （Ayatori ADR-0028）。RBAC 的防提权检查只允许绑定本 SA 已持有的权限，因此不能借此扩大权限。
+- apiGroups: [rbac.authorization.k8s.io]
+  resources: [rolebindings]
+  verbs: [get, list, watch, create, update, patch, delete]
 <% end -%>
 ---
 apiVersion: rbac.authorization.k8s.io/v1

@@ -233,6 +233,7 @@ describe 'homelab_ayatori::default' do
       is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('path: ./deploy/flux/loadbalancer')
       is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml')
         .with_content('resources: [loadbalancerhosts, loadbalancers, backends]')
+      is_expected.to render_file('/var/lib/ayatori-deploy/bootstrap.yaml').with_content('resources: [rolebindings]')
     end
   end
 
